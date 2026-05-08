@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS books (
   pages INTEGER,
   language TEXT DEFAULT 'English',
   description TEXT,
+  cover_url TEXT,
   -- forthcoming-specific
   arrival_date TEXT,
   -- second-hand specific

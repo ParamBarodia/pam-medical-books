@@ -10,7 +10,7 @@ import {
   GenuineBanner, Distributors, Footer, BookCover, Icon,
   SectionOrnament,
 } from './components.jsx';
-import { ProductModal, AuthModal, CartDrawer, CheckoutModal } from './modals.jsx';
+import { ProductModal, AuthModal, CartDrawer, CheckoutModal, WishlistDrawer, AccountDrawer } from './modals.jsx';
 
 export default function App() {
   // ── Server-backed state ──────────────────────────────────────────────────
@@ -35,6 +35,8 @@ export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Live-search debounce
@@ -107,6 +109,8 @@ export default function App() {
         activeCategory={activeCategory} setActiveCategory={setActiveCategory}
         onOpenCart={() => setCartOpen(true)}
         onSignIn={() => setAuthOpen(true)}
+        onOpenWishlist={() => setWishlistOpen(true)}
+        onOpenAccount={() => setAccountOpen(true)}
       />
 
       <main id="main">
@@ -188,6 +192,21 @@ export default function App() {
           user={auth.user}
           onClose={() => setCheckoutOpen(false)}
           onComplete={handleOrderComplete}
+        />
+      )}
+      {wishlistOpen && auth.user && (
+        <WishlistDrawer
+          onClose={() => setWishlistOpen(false)}
+          onAdd={handleAdd}
+          onWishToggle={(id) => wish.toggle(id)}
+          onOpenBook={(book) => { setWishlistOpen(false); setProductOpen(book); }}
+        />
+      )}
+      {accountOpen && auth.user && (
+        <AccountDrawer
+          user={auth.user}
+          onClose={() => setAccountOpen(false)}
+          onLogout={auth.logout}
         />
       )}
       {toast && <Toast key={toast.id} text={toast.text} accent={toast.accent} />}

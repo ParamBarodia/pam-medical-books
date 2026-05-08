@@ -93,6 +93,17 @@ function getWishlist(userId) {
 
 r.get('/wishlist', requireAuth, (req, res) => res.json(getWishlist(req.user.uid)));
 
+r.get('/wishlist/detailed', requireAuth, (req, res) => {
+  const books = db.prepare(`
+    SELECT b.*
+    FROM wishlist w
+    JOIN books b ON b.id = w.book_id
+    WHERE w.user_id = ?
+    ORDER BY w.added_at DESC
+  `).all(req.user.uid);
+  res.json(books);
+});
+
 r.post('/wishlist', requireAuth, (req, res) => {
   const { bookId } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });

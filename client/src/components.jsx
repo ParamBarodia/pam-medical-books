@@ -205,10 +205,10 @@ export function UtilityStrip({ user, onSignIn, onLogout }) {
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <a href="tel:08045678901" style={{ color: 'var(--ink-2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="phone" size={12} stroke={2} aria-hidden="true" /> +91 80 4567 8901
+          <a href="tel:07926578901" style={{ color: 'var(--ink-2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="phone" size={12} stroke={2} aria-hidden="true" /> +91 79 2657 8901
           </a>
-          <span>Mon–Sat · 10:30 AM – 7 PM</span>
+          <span>Mon–Sat · 10:30 AM – 7 PM · Ellis Bridge, Ahmedabad</span>
           <span className="serif" style={{ color: 'var(--accent)', fontWeight: 600, fontStyle: 'italic', fontSize: 12 }}>
             Helping medical students serve humanity.
           </span>
@@ -229,7 +229,7 @@ export function UtilityStrip({ user, onSignIn, onLogout }) {
 export function Ticker() {
   const items = [
     'Flat ₹100 OFF on orders ₹5,000+', 'Flat ₹200 OFF on orders ₹10,000+',
-    'Free shipping above ₹999', 'Same-day dispatch from Bengaluru',
+    'Free shipping above ₹999', 'Same-day dispatch from Ahmedabad',
     '100% Original — money back otherwise', 'COD available · 21,000 PIN codes',
     'Refer a classmate · Get ₹200 credit',
   ];
@@ -253,25 +253,25 @@ export function Ticker() {
 
 const CATEGORIES = ['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'];
 
-export function Navbar({ user, cartCount = 0, wishCount = 0, query, setQuery, activeCategory, setActiveCategory, onOpenCart, onSignIn }) {
+export function Navbar({ user, cartCount = 0, wishCount = 0, query, setQuery, activeCategory, setActiveCategory, onOpenCart, onSignIn, onOpenWishlist, onOpenAccount }) {
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)' }}>
       <div className="ms-container ms-navbar-row" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 32px',
         display: 'flex', alignItems: 'center', gap: 32 }}>
         <a href="#" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, flexShrink: 0 }}>
-          <span className="display" style={{ fontSize: 32, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
-            MedShelf<span style={{ color: 'var(--accent)' }}>.</span>
+          <span className="display" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+            Pam Medical Books<span style={{ color: 'var(--accent)' }}>.</span>
           </span>
           <span className="serif" style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', marginTop: 4 }}>
-            India's bookseller to medicine
+            Ahmedabad's medical bookseller since 2020
           </span>
         </a>
         <div className="ms-navbar-search" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
           <SearchBar query={query} setQuery={setQuery} />
         </div>
         <div className="ms-navbar-icons" style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <NavIcon icon="user"  label="Account"  onClick={user ? undefined : onSignIn} />
-          <NavIcon icon="heart" label="Wishlist" badge={wishCount} />
+          <NavIcon icon="user"  label="Account"  onClick={user ? onOpenAccount : onSignIn} />
+          <NavIcon icon="heart" label="Wishlist" badge={wishCount} onClick={user ? onOpenWishlist : onSignIn} />
           <NavIcon icon="cart"  label="Cart"     badge={cartCount} highlight onClick={onOpenCart} />
         </div>
       </div>
@@ -817,12 +817,12 @@ export function GenuineBanner() {
           background: 'var(--ink)', color: 'var(--paper)', position: 'relative' }}>
           <div aria-hidden="true" style={{ position: 'absolute', inset: 8, border: '1px solid rgba(217,152,80,0.35)', pointerEvents: 'none' }} />
           <div className="serif" style={{ fontStyle: 'italic', fontSize: 14, color: 'var(--saffron)',
-            letterSpacing: '0.16em', textTransform: 'uppercase' }}>The MedShelf Guarantee</div>
+            letterSpacing: '0.16em', textTransform: 'uppercase' }}>The Pam Guarantee</div>
           <h2 className="display" style={{ fontWeight: 500, fontSize: 40, marginTop: 14, lineHeight: 1.1, color: 'var(--paper)' }}>
             100% Original Books. <span style={{ color: 'var(--saffron)', fontStyle: 'italic' }}>Money back, otherwise.</span>
           </h2>
           <p className="serif" style={{ fontSize: 15, color: 'rgba(246,241,231,0.78)', marginTop: 16, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.65 }}>
-            Every book is sourced from authorised publishers and shipped from our Bengaluru warehouse, wrapped in butter paper.
+            Every book is sourced from authorised publishers and dispatched same-day from our Ellis Bridge shop in Ahmedabad, wrapped in butter paper.
           </p>
         </div>
       </div>
@@ -896,21 +896,22 @@ export function Footer() {
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '56px 32px 24px' }}>
         <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr', gap: 48 }}>
           <div>
-            <span className="display" style={{ fontSize: 30, fontWeight: 600, color: 'var(--paper)' }}>
-              MedShelf<span style={{ color: 'var(--accent-soft)' }}>.</span>
+            <span className="display" style={{ fontSize: 28, fontWeight: 600, color: 'var(--paper)' }}>
+              Pam Medical Books<span style={{ color: 'var(--accent-soft)' }}>.</span>
             </span>
-            <p className="serif" style={{ fontSize: 13.5, fontStyle: 'italic', marginTop: 14, lineHeight: 1.6, maxWidth: 280, color: 'rgba(246,241,231,0.7)' }}>
-              India's bookseller to medicine. Wrapped in butter paper, shipped within 24 hours from Bengaluru.
+            <p className="serif" style={{ fontSize: 13.5, fontStyle: 'italic', marginTop: 14, lineHeight: 1.6, maxWidth: 300, color: 'rgba(246,241,231,0.7)' }}>
+              Ellis Bridge, Ahmedabad's trusted medical bookseller since 2020. Genuine prints, same-day dispatch across Gujarat.
             </p>
-            <div className="sans" style={{ marginTop: 22, fontSize: 12, color: 'rgba(246,241,231,0.65)', lineHeight: 1.9 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon name="pin" size={13} aria-hidden="true" /> 3-6-291/4, Bengaluru — 560029
+            <div className="sans" style={{ marginTop: 22, fontSize: 12, color: 'rgba(246,241,231,0.65)', lineHeight: 1.7 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                <Icon name="pin" size={13} aria-hidden="true" />
+                <span>9, Rangoli Complex, Opp. Victoria Garden, B/S Shantaben Panipuriwala, V.S. Hospital, Ellis Bridge, Ahmedabad — 380006</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Icon name="phone" size={13} stroke={2} aria-hidden="true" /> +91 79 2657 8901
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon name="phone" size={13} stroke={2} aria-hidden="true" /> +91 80 4567 8901
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon name="mail" size={13} aria-hidden="true" /> helpdesk@medshelf.in
+                <Icon name="mail" size={13} aria-hidden="true" /> hello@pammedicalbooks.in
               </div>
             </div>
           </div>
@@ -931,7 +932,7 @@ export function Footer() {
         </div>
         <div className="mono" style={{ paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.08)',
           display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, fontSize: 10.5, color: 'rgba(246,241,231,0.5)' }}>
-          <div>© 2026 MedShelf Books LLP · GSTIN 29ABCDE1234F1Z5</div>
+          <div>© 2026 Pam Medical Book House · Ahmedabad · GSTIN 24ABCDE1234F1Z5</div>
           <div style={{ display: 'flex', gap: 12 }}>
             <span>VISA</span><span>UPI</span><span>RUPAY</span><span>NETBANKING</span><span>COD</span>
           </div>

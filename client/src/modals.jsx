@@ -1,7 +1,25 @@
-// Modals — product detail, auth, cart drawer, checkout (multi-step)
+// Modals — product detail, auth, cart drawer, checkout (multi-step), wishlist, account
 import React, { useEffect, useState } from 'react';
 import { Icon, BookCover } from './components.jsx';
 import { api } from './api.js';
+
+// Loads Razorpay's checkout script once. No-ops if already present.
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const existing = document.querySelector('script[src*="checkout.razorpay.com"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Razorpay script failed to load')));
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Razorpay script failed to load'));
+    document.head.appendChild(s);
+  });
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // ProductModal
@@ -37,7 +55,7 @@ export function ProductModal({ book, onClose, onAdd, onWish, wished }) {
             <BookCover book={book} width={280} height={390} />
           </div>
           <div style={{ padding: '40px 44px' }}>
-            <div className="eyebrow" style={{ color: 'var(--muted)' }}>{book.publisher || 'MedShelf'} · {book.category}</div>
+            <div className="eyebrow" style={{ color: 'var(--muted)' }}>{book.publisher || 'Pam Medical Books'} · {book.category}</div>
             <h1 className="display" style={{ fontSize: 'clamp(22px, 4vw, 32px)', lineHeight: 1.1, margin: '8px 0 6px', fontWeight: 500 }}>{book.title}</h1>
             <div className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic' }}>
               by <span style={{ color: 'var(--ink)', fontStyle: 'normal', fontWeight: 600 }}>{book.author}</span> · {book.edition}
@@ -138,7 +156,7 @@ export function AuthModal({ onClose, onSignedIn, login, signup }) {
           <Icon name="close" size={18} />
         </button>
         <h2 className="display" style={{ fontSize: 28, fontWeight: 500, margin: '0 0 6px' }}>
-          {mode === 'login' ? 'Welcome back.' : <>Join MedShelf<span style={{ color: 'var(--accent)' }}>.</span></>}
+          {mode === 'login' ? 'Welcome back.' : <>Join Pam Medical Books<span style={{ color: 'var(--accent)' }}>.</span></>}
         </h2>
         <p className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 22 }}>
           {mode === 'login' ? 'Sign in to your saved cart, wishlist, and orders.' : 'Save your cart and earn ₹200 for every classmate you refer.'}
@@ -294,9 +312,47 @@ export function CheckoutModal({ items, user, onClose, onComplete }) {
     setErr(''); setLoading(true);
     try {
       const result = await api.checkout(address, paymentMethod);
-      // In production, hand the razorpay_order_id to Razorpay's checkout JS here.
-      // For demo: immediately call verify with a fake payment ID.
-      await api.verifyPayment(result.orderId, 'pay_test_' + Date.now().toString(36));
+
+      // COD: server already created the order; nothing to verify, just confirm.
+      if (paymentMethod === 'cod') {
+        setOrder(result);
+        setStep(3);
+        return;
+      }
+
+      // Mock mode: server returns mockMode=true; just call verify with no signature.
+      if (result.mockMode) {
+        await api.verifyPayment(result.orderId, {
+          razorpay_order_id: result.razorpayOrderId,
+          razorpay_payment_id: 'pay_test_' + Date.now().toString(36),
+        });
+        setOrder(result);
+        setStep(3);
+        return;
+      }
+
+      // Real mode: load Razorpay checkout JS, open the modal, verify on success.
+      await loadRazorpayScript();
+      await new Promise((resolve, reject) => {
+        const rzp = new window.Razorpay({
+          key: result.razorpayKeyId,
+          amount: result.amount * 100,
+          currency: result.currency,
+          name: 'Pam Medical Books',
+          description: `Order ${result.orderId}`,
+          order_id: result.razorpayOrderId,
+          prefill: { name: address.name, email: address.email, contact: address.phone },
+          theme: { color: '#8B2A1F' },
+          handler: async (rsp) => {
+            try {
+              await api.verifyPayment(result.orderId, rsp);
+              resolve();
+            } catch (e) { reject(e); }
+          },
+          modal: { ondismiss: () => reject(new Error('Payment cancelled')) },
+        });
+        rzp.open();
+      });
       setOrder(result);
       setStep(3);
     } catch (e) { setErr(e.message || 'Checkout failed'); }
@@ -413,5 +469,177 @@ function CheckoutField({ label, value, onChange, type = 'text', span = 1 }) {
         style={{ padding: '11px 14px', fontSize: 14, fontFamily: 'var(--serif)',
           background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)', outline: 'none' }} />
     </label>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// WishlistDrawer — slides in from right; lists wishlisted books, with Add to Cart + Remove
+// ────────────────────────────────────────────────────────────────────────────
+export function WishlistDrawer({ onClose, onAdd, onWishToggle, onOpenBook }) {
+  const [items, setItems] = useState(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    api.wishlistDetailed().then(setItems).catch(() => setItems([]));
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  const removeOne = async (bookId) => {
+    setItems(prev => prev.filter(b => b.id !== bookId));
+    onWishToggle(bookId);
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.7)', zIndex: 90, animation: 'fade .2s ease-out',
+    }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Wishlist"
+        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '100vw',
+          background: 'var(--paper)', display: 'flex', flexDirection: 'column',
+          boxShadow: '-20px 0 40px rgba(0,0,0,0.4)', animation: 'slide-up .22s ease-out' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--rule-soft)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Icon name="heart" size={20} />
+          <div className="display" style={{ fontSize: 22, fontWeight: 500, flex: 1 }}>
+            Your Wishlist {items && items.length > 0 && <span className="serif" style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--muted)', fontWeight: 400 }}>· {items.length} {items.length === 1 ? 'book' : 'books'}</span>}
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
+          {items === null && <div className="serif" style={{ padding: '40px 0', textAlign: 'center', fontStyle: 'italic', color: 'var(--muted)' }}>Loading…</div>}
+          {items && items.length === 0 && (
+            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+              <Icon name="heart" size={36} />
+              <div className="display" style={{ fontSize: 18, fontWeight: 500, marginTop: 12 }}>No saved books yet</div>
+              <div className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>Tap the ♥ on any book to save it for later.</div>
+            </div>
+          )}
+          {items && items.map(book => (
+            <div key={book.id} style={{ display: 'flex', gap: 14, padding: '16px 0', borderBottom: '1px solid var(--rule-soft)' }}>
+              <button onClick={() => { onClose(); onOpenBook(book); }} aria-label="Open book" style={{ flexShrink: 0 }}>
+                <BookCover book={book} width={60} height={84} />
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="serif" style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{book.title}</div>
+                <div className="serif" style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>{book.author} · {book.edition}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                  <span className="serif" style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>₹{book.price?.toLocaleString('en-IN')}</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => onAdd(book)} className="sans" style={{
+                      fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                      padding: '8px 12px', background: 'var(--accent)', color: 'var(--paper)' }}>
+                      Add to cart
+                    </button>
+                    <button onClick={() => removeOne(book.id)} aria-label="Remove from wishlist"
+                      className="sans" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                      padding: '8px 12px', background: 'var(--paper-2)', color: 'var(--muted)',
+                      border: '1px solid var(--rule-soft)' }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// AccountDrawer — profile summary + recent orders with status & tracking
+// ────────────────────────────────────────────────────────────────────────────
+export function AccountDrawer({ user, onLogout, onClose }) {
+  const [orders, setOrders] = useState(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    api.orders().then(setOrders).catch(() => setOrders([]));
+    return () => { document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  const statusColor = (s) =>
+    s === 'paid'      ? 'var(--success)' :
+    s === 'shipped'   ? 'var(--accent)'  :
+    s === 'delivered' ? 'var(--success)' :
+    s === 'cancelled' ? 'var(--muted)'   : 'var(--ink-2)';
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.7)', zIndex: 90, animation: 'fade .2s ease-out',
+    }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Account"
+        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 480, maxWidth: '100vw',
+          background: 'var(--paper)', display: 'flex', flexDirection: 'column',
+          boxShadow: '-20px 0 40px rgba(0,0,0,0.4)', animation: 'slide-up .22s ease-out' }}>
+        <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--rule-soft)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <Icon name="user" size={20} />
+          <div style={{ flex: 1 }}>
+            <div className="display" style={{ fontSize: 22, fontWeight: 500 }}>{user.name || 'My account'}</div>
+            <div className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>{user.email}</div>
+            {user.wallet_credit > 0 && (
+              <div className="sans" style={{ display: 'inline-block', marginTop: 8, padding: '4px 10px',
+                background: 'rgba(44,106,74,0.12)', color: 'var(--success)',
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}>
+                ◆ Wallet credit ₹{user.wallet_credit.toLocaleString('en-IN')}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+          <div className="eyebrow" style={{ color: 'var(--muted)', marginBottom: 12 }}>Recent orders</div>
+          {orders === null && <div className="serif" style={{ padding: '20px 0', fontStyle: 'italic', color: 'var(--muted)' }}>Loading…</div>}
+          {orders && orders.length === 0 && (
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+              <Icon name="package" size={32} />
+              <div className="display" style={{ fontSize: 17, fontWeight: 500, marginTop: 10 }}>No orders yet</div>
+              <div className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>Your past orders will appear here.</div>
+            </div>
+          )}
+          {orders && orders.map(o => (
+            <div key={o.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--rule-soft)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{o.id}</span>
+                <span className="sans" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: statusColor(o.status) }}>
+                  ● {o.status}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+                <span className="serif" style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                  {new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  · {o.payment_method?.toUpperCase()}
+                </span>
+                <span className="serif" style={{ fontSize: 14, fontWeight: 600 }}>₹{o.total?.toLocaleString('en-IN')}</span>
+              </div>
+              {o.tracking_url && (
+                <a href={o.tracking_url} target="_blank" rel="noreferrer" className="sans"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6,
+                    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)' }}>
+                  Track shipment →
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--rule-soft)', padding: '14px 28px', background: 'var(--paper-2)' }}>
+          <button onClick={() => { onLogout(); onClose(); }} className="sans"
+            style={{ width: '100%', padding: 12, fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.16em', textTransform: 'uppercase',
+              background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)' }}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

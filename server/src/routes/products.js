@@ -18,6 +18,7 @@ function reshapeBook(b) {
     rating: b.rating,
     reviews: b.reviews,
     cover: { bg: b.cover_bg, accent: b.cover_accent, style: b.cover_style },
+    imageUrl: b.cover_url || undefined,
     tag: b.tag,
     category: b.category,
     stock: b.stock,

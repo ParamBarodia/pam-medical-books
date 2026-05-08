@@ -47,13 +47,14 @@ export const api = {
   cartClear:   () => request('/cart', { method: 'DELETE', auth: true }),
 
   // ─── Wishlist ────────────────────────────────────────────────────────────
-  wishlist:       () => request('/wishlist', { auth: true }),
+  wishlist:         () => request('/wishlist', { auth: true }),
+  wishlistDetailed: () => request('/wishlist/detailed', { auth: true }),
   wishlistAdd:    (bookId) => request('/wishlist', { method: 'POST', body: { bookId }, auth: true }),
   wishlistRemove: (bookId) => request(`/wishlist/${bookId}`, { method: 'DELETE', auth: true }),
 
   // ─── Orders ──────────────────────────────────────────────────────────────
   checkout: (address, paymentMethod) => request('/orders/checkout', { method: 'POST', body: { address, paymentMethod }, auth: true }),
-  verifyPayment: (orderId, razorpayPaymentId) => request(`/orders/${orderId}/verify`, { method: 'POST', body: { razorpayPaymentId }, auth: true }),
+  verifyPayment: (orderId, payload) => request(`/orders/${orderId}/verify`, { method: 'POST', body: payload, auth: true }),
   orders:   () => request('/orders', { auth: true }),
   order:    (id) => request(`/orders/${id}`, { auth: true }),
 };

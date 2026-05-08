@@ -9,6 +9,16 @@ inner.exec('PRAGMA journal_mode = WAL');
 inner.exec('PRAGMA foreign_keys = ON');
 inner.exec(SCHEMA);
 
+// Idempotent column-additions for older DBs predating these columns.
+const MIGRATIONS = [
+  'ALTER TABLE books ADD COLUMN cover_url TEXT',
+];
+for (const sql of MIGRATIONS) {
+  try { inner.exec(sql); } catch (e) {
+    if (!/duplicate column/i.test(e.message)) throw e;
+  }
+}
+
 // Wrap statement to mimic better-sqlite3's .get / .all / .run semantics
 function wrapStatement(stmt) {
   return {

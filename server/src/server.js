@@ -2,6 +2,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 
 import { authMiddleware } from './auth.js';
 import productsRouter from './routes/products.js';
@@ -29,6 +31,13 @@ app.use('/api/webhooks/razorpay',
 // ─── JSON parser for all other routes ────────────────────────────────────
 app.use(express.json({ limit: '256kb' }));
 app.use(authMiddleware);
+
+// ─── Static assets (book covers) ─────────────────────────────────────────
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.use('/covers', express.static(resolve(__dirname, '../public/covers'), {
+  maxAge: '7d',
+  fallthrough: true,
+}));
 
 // ─── Routes ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
