@@ -1,0 +1,374 @@
+:root {
+  --paper: #f6f1e7;
+  --paper-2: #efe7d6;
+  --paper-3: #e6dcc6;
+  --ink: #1c1a14;
+  --ink-2: #3a352a;
+  --muted: #6f6856;
+  --rule: #2a2620;
+  --rule-soft: #c8bfa8;
+  --accent: #8b2a1f;
+  --accent-soft: #b85a48;
+  --saffron: #d99850;
+  --success: #2c6a4a;
+  --gold: #b8893a;
+  --focus-ring: 0 0 0 3px rgba(139, 42, 31, 0.45);
+  --serif: "Fraunces", "Source Serif 4", Georgia, serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--body);
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.display { font-family: var(--serif); font-weight: 500; letter-spacing: -0.018em; }
+.serif   { font-family: var(--serif); }
+.sans    { font-family: var(--sans); }
+.mono    { font-family: var(--mono); font-feature-settings: "tnum"; }
+.eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input  { font-family: inherit; }
+a      { color: inherit; text-decoration: none; }
+
+@keyframes ms-marquee { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }
+@keyframes pulse-dot  { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+@keyframes slide-up   { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade       { from { opacity: 0; } to { opacity: 1; } }
+@keyframes badge-pop  { 0% { transform: scale(1); } 35% { transform: scale(1.4); background: var(--success) !important; } 100% { transform: scale(1); } }
+@keyframes ms-reveal  { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.toast-enter { animation: slide-up 0.25s ease-out; }
+.badge-pop   { animation: badge-pop 0.5s ease-out; }
+
+/* ─── Differentiation anchor #1: paper grain texture ─── */
+/* Subtle SVG noise overlay on the body — gives every paper surface a "tooth" */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  opacity: 0.45;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.10 0 0 0 0 0.08 0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+}
+/* Make sure all interactive content sits above the grain layer */
+header, main, footer, [role="dialog"], [role="status"] { position: relative; z-index: 2; }
+
+/* ─── Scroll-reveal — gentle, fail-safe (always visible if JS slow / disabled) ─── */
+.ms-reveal {
+  opacity: 1;            /* always visible by default — never trap content */
+  transform: translateY(0);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+/* Only hide-then-reveal if .js-revealing is added by the hook AND IntersectionObserver is supported */
+html.js-revealing-on .ms-reveal:not(.is-visible) {
+  opacity: 0; transform: translateY(20px);
+}
+
+/* ─── Differentiation anchor #3: page-lift hover on book cards ─── */
+/* Subtle "lift the corner of a paper page" — tilt 0.5deg + lift 3px */
+.ms-card-lift {
+  transition: transform 0.22s cubic-bezier(.2, .8, .2, 1),
+              box-shadow 0.22s ease-out;
+  transform: translateY(0) rotate(0deg);
+  will-change: transform;
+}
+.ms-card-lift:hover {
+  transform: translateY(-4px) rotate(-0.4deg);
+  box-shadow: 0 22px 36px -18px rgba(28, 26, 20, 0.28),
+              0 4px 10px -4px rgba(28, 26, 20, 0.18);
+}
+
+/* ─── Skeleton with paper grain (instead of gray boxes) ─── */
+.ms-skel {
+  background: linear-gradient(110deg,
+    var(--paper-2) 0%,
+    var(--paper-3) 45%,
+    var(--paper-2) 60%);
+  background-size: 250% 100%;
+  animation: ms-skel-shimmer 2s ease-in-out infinite;
+  border: 1px solid var(--rule-soft);
+}
+@keyframes ms-skel-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+*:focus { outline: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+[role="button"]:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  box-shadow: var(--focus-ring) !important;
+  border-radius: 6px;
+}
+
+.skip-link {
+  position: absolute; top: -100px; left: 16px; z-index: 999;
+  background: var(--saffron); color: var(--ink);
+  padding: 12px 20px; font-weight: 700; font-size: 14px;
+  font-family: var(--sans); letter-spacing: 0.04em;
+  transition: top .15s;
+}
+.skip-link:focus { top: 12px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1280px) {
+  .ms-grid-6 { grid-template-columns: repeat(4, 1fr) !important; }
+  .ms-grid-5 { grid-template-columns: repeat(4, 1fr) !important; }
+}
+@media (max-width: 1024px) {
+  .ms-container { padding-left: 24px !important; padding-right: 24px !important; }
+  .ms-grid-6 { grid-template-columns: repeat(3, 1fr) !important; }
+  .ms-grid-5 { grid-template-columns: repeat(3, 1fr) !important; }
+  .ms-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .ms-hero-h1 { font-size: 36px !important; }
+  .ms-quick-pills { grid-template-columns: repeat(3, 1fr) !important; }
+  /* Tablet hero: keep both columns but tighter */
+  .ms-hero-banner { grid-template-columns: 1.2fr 0.8fr !important; padding: 36px 32px !important; min-height: 320px !important; }
+  .ms-hero-banner h1 { font-size: 28px !important; }
+}
+@media (max-width: 768px) {
+  .ms-container { padding-left: 16px !important; padding-right: 16px !important; padding-top: 48px !important; padding-bottom: 48px !important; }
+  .ms-grid-6 { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+  .ms-grid-5 { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+  .ms-grid-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+  .ms-grid-3 { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .ms-grid-2 { grid-template-columns: 1fr !important; gap: 24px !important; }
+  .ms-quick-pills { grid-template-columns: repeat(2, 1fr) !important; }
+  .ms-hero-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+  .ms-hero-h1 { font-size: clamp(32px, 8vw, 44px) !important; }
+  .ms-hero-visual { display: none !important; }
+  .ms-modal-grid { grid-template-columns: 1fr !important; }
+  .ms-cart-drawer { width: 100vw !important; }
+  .ms-section-head { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+  .ms-section-head h2 { font-size: 28px !important; }
+  .ms-trustbar-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .ms-trustbar-item { border-left: none !important; border-top: 1px solid var(--rule-soft); }
+  .ms-stat-row { flex-wrap: wrap; gap: 20px !important; }
+  .ms-toast { bottom: 80px !important; }
+  .ms-utility-strip-right { display: none !important; }
+  .ms-navbar-row { flex-wrap: wrap !important; gap: 12px !important; padding: 12px 16px !important; }
+  .ms-navbar-search { order: 3 !important; flex-basis: 100% !important; min-width: 0 !important; }
+  .ms-navbar-icons { margin-left: auto !important; gap: 0 !important; }
+}
+
+/* True mobile (<600px) — stack hero into a single column with no empty cover area */
+@media (max-width: 600px) {
+  .ms-hero-banner { grid-template-columns: 1fr !important; padding: 28px 20px !important; min-height: auto !important; }
+  .ms-hero-banner h1 { font-size: clamp(22px, 6.5vw, 32px) !important; }
+  .ms-hero-cover { display: none !important; }
+}
+
+[role="button"] { cursor: pointer; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   BUTTON EFFECT SYSTEM — editorial paper-warm + Indian retail
+   Six classes, each with a distinct hover/active feel that matches the theme.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Base — applies to every .ms-btn ─── */
+.ms-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 14px 24px;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.22s ease, color 0.22s ease, transform 0.12s ease, box-shadow 0.22s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.ms-btn:active { transform: translateY(1px); }
+.ms-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* The arrow inside any button — nudges right on hover */
+.ms-btn .ms-arrow {
+  display: inline-block;
+  transition: transform 0.22s cubic-bezier(.2, .8, .2, 1);
+}
+.ms-btn:hover .ms-arrow { transform: translateX(4px); }
+
+/* ─── Primary (oxblood ink button — main CTAs) ─── */
+.ms-btn-primary {
+  background: var(--accent);
+  color: var(--paper);
+  box-shadow: 0 4px 0 -1px var(--accent), inset 0 0 0 0 rgba(0, 0, 0, 0);
+}
+.ms-btn-primary:hover {
+  background: #6e2117;             /* deeper oxblood — like ink soaking in */
+  box-shadow: 0 6px 18px -8px rgba(139, 42, 31, 0.55),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+.ms-btn-primary:active {
+  background: #5a1810;
+  box-shadow: 0 2px 6px -2px rgba(139, 42, 31, 0.55);
+  transform: translateY(1px);
+}
+
+/* ─── Ink (dark Buy Now style) ─── */
+.ms-btn-ink {
+  background: var(--ink);
+  color: var(--paper);
+}
+.ms-btn-ink:hover {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Secondary (ghost — paper bg fills with ink on hover) ─── */
+/* The fill animates from left to right like a marker stroke. */
+.ms-btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  overflow: hidden;
+  z-index: 0;
+}
+.ms-btn-ghost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.32s cubic-bezier(.2, .8, .2, 1);
+  z-index: -1;
+}
+.ms-btn-ghost:hover { color: var(--paper); }
+.ms-btn-ghost:hover::before { transform: scaleX(1); }
+.ms-btn-ghost > * { position: relative; z-index: 1; }
+
+/* ─── Tertiary (text link with growing underline + arrow nudge) ─── */
+.ms-btn-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--sans);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 4px 0 6px;
+  position: relative;
+  background: transparent; border: 0; cursor: pointer;
+  transition: color 0.22s ease;
+}
+.ms-btn-link::after {
+  content: '';
+  position: absolute; left: 0; bottom: 2px;
+  width: 100%; height: 1px;
+  background: var(--accent);
+  transform: scaleX(1);
+  transform-origin: left center;
+  transition: transform 0.32s cubic-bezier(.2, .8, .2, 1);
+}
+.ms-btn-link:hover::after {
+  /* subtle "ink mark" effect — pulses thicker briefly */
+  height: 2px;
+}
+.ms-btn-link:hover .ms-arrow { transform: translateX(4px); }
+
+/* ─── Pill (the 5 quick-action pills — fills oxblood on hover) ─── */
+.ms-btn-pill {
+  background: var(--paper-2);
+  border: 1px solid var(--rule-soft);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, transform 0.12s ease;
+}
+.ms-btn-pill:hover {
+  background: var(--paper);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -6px rgba(139, 42, 31, 0.25);
+}
+.ms-btn-pill:active { transform: translateY(0); }
+
+/* ─── Icon-only round (the "+" add button on book cards) ─── */
+.ms-btn-icon {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 16px; font-weight: 700;
+  cursor: pointer;
+  transition: background 0.22s ease, color 0.22s ease, transform 0.18s ease;
+  position: relative; overflow: hidden;
+}
+.ms-btn-icon::before {
+  /* radial fill from center on hover — like ink soaking outward */
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at center, var(--accent) 0%, var(--accent) 100%);
+  border-radius: 50%;
+  transform: scale(0);
+  transition: transform 0.32s cubic-bezier(.2, .8, .2, 1);
+  z-index: 0;
+}
+.ms-btn-icon:hover { color: var(--paper); transform: scale(1.06); }
+.ms-btn-icon:hover::before { transform: scale(1.5); }
+.ms-btn-icon > * { position: relative; z-index: 1; }
+.ms-btn-icon[data-state="added"] {
+  background: var(--success); color: var(--paper); border-color: var(--success);
+}
+
+/* ─── Search bar submit ─── */
+.ms-btn-search {
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--sans);
+  font-weight: 600;
+  padding: 12px 24px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.18s ease, letter-spacing 0.22s ease;
+}
+.ms-btn-search:hover {
+  background: #6e2117;
+  letter-spacing: 0.2em;     /* tracks slightly wider — like reaching forward */
+}
+
+/* ─── "Notify me" + "View all" arrow links (already styled inline, but add nudge) ─── */
+.ms-arrow-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; transition: color 0.22s ease;
+}
+.ms-arrow-link:hover .ms-arrow { transform: translateX(4px); }
+.ms-arrow-link:hover { color: #6e2117; }
