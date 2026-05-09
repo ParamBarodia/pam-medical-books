@@ -367,32 +367,35 @@ const FALLBACK_HERO_BOOK = {
 const SLIDE_INTERVAL_MS = 6500;
 const FLIP_DURATION_MS = 1100;
 
+// Hero — auto-advancing carousel. The current page peels from the right edge
+// using an animated CSS clip-path while a "fold shadow" pseudo-element grows
+// from the same edge to fake the curl. The next slide sits underneath, fully
+// rendered, and is gradually exposed as the peel progresses.
 export function Hero({ books = [], onAdd, onOpen }) {
   const slides = books.length ? books : [FALLBACK_HERO_BOOK];
   const [index, setIndex] = useState(0);
-  const [flipping, setFlipping] = useState(false);
+  const [peeling, setPeeling] = useState(false);
   const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
 
   const goNext = useCallback(() => {
-    if (flipping || slides.length <= 1) return;
-    setFlipping(true);
+    if (peeling || slides.length <= 1) return;
+    setPeeling(true);
     setTimeout(() => {
       setIndex((i) => (i + 1) % slides.length);
-      setFlipping(false);
+      setPeeling(false);
     }, FLIP_DURATION_MS);
-  }, [flipping, slides.length]);
+  }, [peeling, slides.length]);
 
   const goTo = useCallback((target) => {
-    if (flipping || target === index || slides.length <= 1) return;
-    setFlipping(true);
+    if (peeling || target === index || slides.length <= 1) return;
+    setPeeling(true);
     setTimeout(() => {
       setIndex(target);
-      setFlipping(false);
+      setPeeling(false);
     }, FLIP_DURATION_MS);
-  }, [flipping, index, slides.length]);
+  }, [peeling, index, slides.length]);
 
-  // Auto-advance, paused on hover
   useEffect(() => {
     if (paused || slides.length <= 1) return;
     timerRef.current = setTimeout(goNext, SLIDE_INTERVAL_MS);
@@ -410,43 +413,30 @@ export function Hero({ books = [], onAdd, onOpen }) {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           style={{
-            position: 'relative', overflow: 'hidden',
-            background: 'linear-gradient(115deg, #1a4a52 0%, #2c6470 60%, #1a4a52 100%)',
-            color: 'var(--paper)', padding: '56px 64px', minHeight: 420,
-            perspective: '2000px',
+            position: 'relative',
+            minHeight: 420,
+            background: 'var(--paper-2)',
+            overflow: 'hidden',
           }}
         >
-          {/* Decorative offset color blocks — stay put */}
-          <div aria-hidden="true" style={{
-            position: 'absolute', left: '42%', top: '10%', width: 240, height: 200,
-            background: 'var(--saffron)', opacity: 0.7, pointerEvents: 'none',
-          }} />
-          <div aria-hidden="true" style={{
-            position: 'absolute', left: '50%', top: '45%', width: 200, height: 180,
-            background: 'var(--accent)', opacity: 0.4, pointerEvents: 'none',
-          }} />
+          {/* The "next" page sits beneath the current one, full bleed */}
+          <div className="ms-hero-stack ms-hero-stack-next" aria-hidden="true">
+            <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen} />
+          </div>
+          {/* The "current" page on top — clip-path animates it peeling away */}
+          <div className={`ms-hero-stack ms-hero-stack-current ${peeling ? 'is-peeling' : ''}`}>
+            <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen} />
+            {/* The fold-shadow pseudo overlay — also clipped, gives the bent-paper highlight */}
+            <div className="ms-hero-fold" aria-hidden="true" />
+          </div>
 
-          {/* The "next" page sits behind, ready to be revealed */}
-          <HeroPage book={next} onAdd={onAdd} onOpen={onOpen} aria-hidden="true"
-            style={{ position: 'absolute', inset: '56px 64px', pointerEvents: 'none' }} />
-
-          {/* The "current" page sits on top and flips out when advancing */}
-          <HeroPage
-            book={current} onAdd={onAdd} onOpen={onOpen}
-            className={`ms-hero-page ${flipping ? 'ms-hero-page-flipping' : ''}`}
-          />
-
-          {/* Prev / next arrows for keyboard / accessibility */}
           {slides.length > 1 && (
-            <>
-              <button onClick={goNext} aria-label="Next slide"
-                className="ms-hero-nav" style={{ right: 16 }}>
-                <Icon name="arrow-right" size={18} />
-              </button>
-            </>
+            <button onClick={goNext} aria-label="Next slide"
+              className="ms-hero-nav" style={{ right: 16 }}>
+              <Icon name="arrow-right" size={18} />
+            </button>
           )}
 
-          {/* Slide dots — clickable */}
           {slides.length > 1 && (
             <div style={{
               position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)',
@@ -458,7 +448,7 @@ export function Hero({ books = [], onAdd, onOpen }) {
                   aria-label={`Go to slide ${i + 1}`}
                   style={{
                     width: i === index ? 22 : 7, height: 7, borderRadius: 4,
-                    background: i === index ? 'var(--accent)' : 'rgba(255,255,255,0.4)',
+                    background: i === index ? 'var(--accent)' : 'rgba(255,255,255,0.45)',
                     border: 'none', padding: 0, cursor: 'pointer',
                     transition: 'width 280ms ease, background 280ms ease',
                   }} />
@@ -479,33 +469,40 @@ export function Hero({ books = [], onAdd, onOpen }) {
   );
 }
 
-// One "page" of the hero — the white-card content + the tilted book cover.
-// Hinged on the left edge so rotateY(-180deg) turns it like a real book page.
-function HeroPage({ book, onAdd, onOpen, className = '', style = {}, ...rest }) {
+// The interior of a single hero page — the book "open" against a teal spread.
+function HeroPageContent({ book, onAdd, onOpen }) {
   const off = Math.round((1 - book.price / book.mrp) * 100);
   return (
-    <div className={className} style={{
+    <div style={{
+      width: '100%', height: '100%',
+      background: 'linear-gradient(115deg, #1a4a52 0%, #2c6470 60%, #1a4a52 100%)',
+      color: 'var(--paper)', padding: '40px 56px', position: 'relative', overflow: 'hidden',
       display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'center',
-      transformOrigin: 'left center',
-      transformStyle: 'preserve-3d',
-      ...style,
-    }} {...rest}>
-      {/* White card — title, author, price, CTA */}
+    }}>
+      <div aria-hidden="true" style={{
+        position: 'absolute', left: '42%', top: '10%', width: 240, height: 200,
+        background: 'var(--saffron)', opacity: 0.7, pointerEvents: 'none',
+      }} />
+      <div aria-hidden="true" style={{
+        position: 'absolute', left: '50%', top: '45%', width: 200, height: 180,
+        background: 'var(--accent)', opacity: 0.4, pointerEvents: 'none',
+      }} />
+
       <div style={{
         position: 'relative', background: 'var(--paper)', color: 'var(--ink)',
-        padding: '40px 48px', maxWidth: 520,
+        padding: '36px 44px', maxWidth: 520,
         boxShadow: '0 18px 40px -16px rgba(0,0,0,0.45)',
       }}>
         <div className="eyebrow" style={{ color: 'var(--accent)', letterSpacing: '0.32em' }}>{book.tag || 'Featured · 2026'}</div>
         <h1 className="display ms-hero-h1" style={{
-          fontWeight: 500, fontSize: 'clamp(28px, 3.5vw, 44px)',
-          letterSpacing: '-0.02em', lineHeight: 1.05, marginTop: 14, color: 'var(--ink)',
+          fontWeight: 500, fontSize: 'clamp(24px, 3vw, 38px)',
+          letterSpacing: '-0.02em', lineHeight: 1.05, marginTop: 12, color: 'var(--ink)',
         }}>{book.title}</h1>
-        <div style={{ height: 1, background: 'var(--accent)', opacity: 0.5, margin: '18px 0', width: 90 }} />
-        <div className="serif" style={{ fontSize: 14, color: 'var(--ink-2)' }}>
+        <div style={{ height: 1, background: 'var(--accent)', opacity: 0.5, margin: '14px 0', width: 90 }} />
+        <div className="serif" style={{ fontSize: 13, color: 'var(--ink-2)' }}>
           By {book.author} · {book.edition}
         </div>
-        <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span className="serif" style={{ fontWeight: 600, fontSize: 22, color: 'var(--accent)' }}>
               ₹{book.price.toLocaleString('en-IN')}
@@ -518,19 +515,18 @@ function HeroPage({ book, onAdd, onOpen, className = '', style = {}, ...rest }) 
             You save ₹{(book.mrp - book.price).toLocaleString('en-IN')} ({off}%)
           </span>
         </div>
-        <button onClick={() => onAdd && onAdd(book)} className="ms-btn ms-btn-ink" style={{ marginTop: 20, padding: '14px 28px' }}>
+        <button onClick={() => onAdd && onAdd(book)} className="ms-btn ms-btn-ink" style={{ marginTop: 16, padding: '12px 24px' }}>
           Buy Now <span className="ms-arrow">→</span>
         </button>
       </div>
 
-      {/* Tilted book cover with a librarian's stamp */}
       <div className="ms-hero-cover" style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
         <button
           onClick={() => onOpen && onOpen(book)}
           aria-label={`Open ${book.title}`}
           style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
           <div style={{ transform: 'rotate(2deg)', position: 'relative' }}>
-            <BookCover book={book} width={220} height={310} />
+            <BookCover book={book} width={200} height={282} />
             <div style={{ position: 'absolute', bottom: -18, right: -34, zIndex: 5 }}>
               <StampSeal rotate={-14}>{book.edition?.split(' ')[0] || 'New'}<br/>Edition</StampSeal>
             </div>
@@ -595,16 +591,20 @@ export function CourseTiles() {
         </div>
         <div className="ms-grid-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
           {COURSE_TINTS.map((c, i) => (
-            <a key={i} href="#" style={{
-              padding: '24px 18px', background: c.tint,
-              border: `1px solid ${c.hue}22`, position: 'relative',
+            <a key={i} href="#" className="ms-course-tile" style={{
+              '--tile-tint': c.tint,
+              '--tile-hue': c.hue,
+              padding: '24px 18px', position: 'relative',
               display: 'flex', flexDirection: 'column', gap: 6, minHeight: 140,
             }}>
-              <div style={{
+              <div className="ms-course-tile-bubble" style={{
                 width: 36, height: 36, borderRadius: '50%',
-                background: 'var(--paper)', border: `1px solid ${c.hue}33`,
+                background: 'rgba(255,255,255,0.7)',
+                backdropFilter: 'blur(6px)',
+                border: `1px solid ${c.hue}33`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'var(--serif)', fontWeight: 600, fontSize: 16, color: c.hue,
+                boxShadow: '0 1px 0 rgba(255,255,255,0.7) inset',
               }}>
                 {c.name[0]}
               </div>
@@ -612,7 +612,7 @@ export function CourseTiles() {
                 fontWeight: 500, fontSize: 22, letterSpacing: '-0.01em',
                 color: c.hue, marginTop: 6,
               }}>{c.name}</div>
-              <div className="serif" style={{ fontStyle: 'italic', fontSize: 12, color: 'var(--ink-2)', opacity: 0.75 }}>{c.sub}</div>
+              <div className="serif" style={{ fontStyle: 'italic', fontSize: 12, color: 'var(--ink-2)', opacity: 0.78 }}>{c.sub}</div>
             </a>
           ))}
         </div>

@@ -294,10 +294,12 @@ html { scroll-behavior: smooth; }
 }
 .ms-btn-link:hover .ms-arrow { transform: translateX(4px); }
 
-/* ─── Pill (the 5 quick-action pills — fills oxblood on hover) ─── */
+/* ─── Pill (5 quick-action pills below hero) — glass tint over paper ─── */
 .ms-btn-pill {
-  background: var(--paper-2);
-  border: 1px solid var(--rule-soft);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(28, 26, 20, 0.08);
   color: var(--ink-2);
   font-family: var(--sans);
   font-size: 11.5px;
@@ -305,14 +307,15 @@ html { scroll-behavior: smooth; }
   letter-spacing: 0.04em;
   padding: 14px 16px;
   cursor: pointer;
-  transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, transform 0.12s ease;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.7) inset, 0 6px 14px -10px rgba(28,26,20,0.18);
+  transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, transform 0.18s ease, box-shadow 0.22s ease;
 }
 .ms-btn-pill:hover {
-  background: var(--paper);
-  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(139, 42, 31, 0.35);
   color: var(--accent);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px -6px rgba(139, 42, 31, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 12px 22px -10px rgba(139, 42, 31, 0.28);
 }
 .ms-btn-pill:active { transform: translateY(0); }
 
@@ -373,56 +376,94 @@ html { scroll-behavior: smooth; }
 .ms-arrow-link:hover .ms-arrow { transform: translateX(4px); }
 .ms-arrow-link:hover { color: #6e2117; }
 
-/* ─── Hero page-turn carousel ─────────────────────────────────────── */
-.ms-hero-page {
-  position: relative;
-  z-index: 2;
-  transform-origin: 0% 50%;     /* hinged on the left edge, like a book spine */
-  transform-style: preserve-3d;
-  will-change: transform, filter;
-}
-.ms-hero-page-flipping {
-  animation: ms-page-turn 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
-}
-/* A subtle dark gradient sweeps across the page mid-flip, like the back-of-paper
-   shadow you'd see when turning a real page in a book. */
-.ms-hero-page-flipping::after {
-  content: '';
+/* ─── Hero page-peel carousel ─────────────────────────────────────── */
+/* Two layers: "next" sits beneath, "current" on top. When advancing, the
+   current's clip-path animates from a full rectangle to a triangle pinched
+   at the top-left, giving the appearance that someone grabbed the bottom-
+   right corner and peeled the page diagonally. A pseudo-element drops a
+   shadow gradient along the fold line for depth. */
+.ms-hero-stack {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 30%, rgba(0,0,0,0) 70%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 99;
-  animation: ms-page-shadow 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
 }
-@keyframes ms-page-turn {
+.ms-hero-stack-next {
+  z-index: 1;
+}
+.ms-hero-stack-current {
+  z-index: 2;
+  /* Default: page lies flat, nothing clipped */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  transform-origin: 0 0;
+  will-change: clip-path, transform, box-shadow, filter;
+}
+/* The fold shadow — sits flush with the page, only visible when peeling */
+.ms-hero-fold {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* Vertical highlight running along the curl spine */
+    linear-gradient(to right, transparent 0%, transparent 55%, rgba(255,255,255,0.55) 75%, transparent 90%),
+    /* Dark gradient that simulates the underside of the curling paper */
+    linear-gradient(to top right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 30%, transparent 55%);
+  opacity: 0;
+  /* Triangle that sits inside the peeled region. Its clip is the inverse of
+     the page clip, so it appears in the area being "lifted". */
+  clip-path: polygon(100% 100%, 100% 100%, 100% 100%);
+  transition: opacity 200ms ease;
+}
+.is-peeling {
+  animation: ms-page-peel 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+}
+.is-peeling .ms-hero-fold {
+  opacity: 1;
+  animation: ms-page-fold 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+}
+@keyframes ms-page-peel {
   0% {
-    transform: rotateY(0) translateZ(0);
-    filter: brightness(1);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    filter: brightness(1) drop-shadow(0 0 0 rgba(0,0,0,0));
   }
-  20% {
-    transform: rotateY(-25deg) translateZ(20px);
-    filter: brightness(0.95);
+  18% {
+    clip-path: polygon(0 0, 100% 0, 95% 100%, 0 100%);
+    filter: brightness(1) drop-shadow(-4px 6px 14px rgba(0,0,0,0.18));
   }
-  50% {
-    transform: rotateY(-95deg) translateZ(40px);
-    filter: brightness(0.7);
+  45% {
+    /* Mid-peel — the right edge has lifted, exposing the bottom-right corner */
+    clip-path: polygon(0 0, 70% 0, 25% 100%, 0 100%);
+    filter: brightness(0.95) drop-shadow(-12px 12px 28px rgba(0,0,0,0.32));
   }
-  80% {
-    transform: rotateY(-160deg) translateZ(20px);
-    filter: brightness(0.85);
+  75% {
+    clip-path: polygon(0 0, 30% 0, 0 60%, 0 100%);
+    filter: brightness(0.92) drop-shadow(-22px 14px 36px rgba(0,0,0,0.4));
   }
   100% {
-    transform: rotateY(-180deg) translateZ(0);
-    filter: brightness(0.92);
+    clip-path: polygon(0 0, 0 0, 0 0, 0 0);
+    filter: brightness(0.9) drop-shadow(-30px 18px 44px rgba(0,0,0,0.45));
   }
 }
-@keyframes ms-page-shadow {
-  0%   { opacity: 0; }
-  25%  { opacity: 0.6; }
-  60%  { opacity: 0.4; }
-  100% { opacity: 0; }
+@keyframes ms-page-fold {
+  0% {
+    clip-path: polygon(100% 100%, 100% 100%, 100% 100%);
+    opacity: 0;
+  }
+  20% {
+    clip-path: polygon(100% 0, 100% 100%, 92% 100%);
+    opacity: 0.7;
+  }
+  50% {
+    /* The fold occupies the diagonal strip just inside the page edge */
+    clip-path: polygon(70% 0, 100% 0, 100% 100%, 25% 100%);
+    opacity: 0.85;
+  }
+  80% {
+    clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 60%);
+    opacity: 0.55;
+  }
+  100% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    opacity: 0;
+  }
 }
 
 /* Navigation arrow — unobtrusive, appears on hover */
@@ -453,4 +494,80 @@ html { scroll-behavior: smooth; }
     opacity: 0;
     transition: opacity 200ms ease;
   }
+}
+
+/* ─── Glass-tinted course/faculty tiles ─────────────────────────── */
+.ms-course-tile {
+  /* The pastel tint shows through a glass surface — feels lighter, more modern */
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.15) 50%, var(--tile-tint) 50%, var(--tile-tint) 100%);
+  background-size: 200% 200%;
+  background-position: 100% 100%;
+  border: 1px solid color-mix(in srgb, var(--tile-hue) 18%, transparent);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.55) inset,
+    0 6px 18px -10px color-mix(in srgb, var(--tile-hue) 30%, transparent);
+  transition: transform 0.28s ease, box-shadow 0.28s ease, background-position 0.6s ease, border-color 0.28s ease;
+  text-decoration: none;
+}
+.ms-course-tile:hover {
+  transform: translateY(-4px);
+  background-position: 0% 0%;
+  border-color: color-mix(in srgb, var(--tile-hue) 45%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 18px 28px -14px color-mix(in srgb, var(--tile-hue) 38%, transparent);
+}
+.ms-course-tile:hover .ms-course-tile-bubble {
+  transform: rotate(-6deg) scale(1.04);
+}
+.ms-course-tile-bubble {
+  transition: transform 0.32s ease;
+}
+
+/* ─── Flipbook container (wrapping StPageFlip) ─────────────────── */
+.ms-flipbook-wrap {
+  width: 100%;
+  max-width: 1100px;
+  /* Hint of grain / texture under the pages — helps sell the depth */
+  background:
+    radial-gradient(circle at 30% 20%, rgba(0,0,0,0.04) 0%, transparent 60%),
+    radial-gradient(circle at 80% 70%, rgba(0,0,0,0.04) 0%, transparent 60%);
+  border-radius: 4px;
+  padding: 8px;
+}
+.ms-flip-page {
+  background: transparent;
+  overflow: hidden;
+}
+/* StPageFlip injects its own classes — nudge the page-fold shadow darker for more drama */
+.ms-flipbook .stf__block {
+  box-shadow: 0 16px 40px -12px rgba(0,0,0,0.35);
+}
+
+/* ─── Subtle scroll-reveal for sections ────────────────────────── */
+.ms-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.3, 1),
+              transform 700ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.ms-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Glass treatment for the trust strip's individual cards */
+.ms-trust-card {
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(28,26,20,0.06);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+.ms-trust-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -16px rgba(28,26,20,0.18);
 }
