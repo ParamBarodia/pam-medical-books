@@ -1,6 +1,18 @@
-// MedShelf API client. All calls go through Vite's /api proxy → http://localhost:4000.
+// Pam Medical Books API client.
+// In dev, requests go to /api (Vite proxies to http://localhost:4000).
+// In prod, set VITE_API_BASE_URL to the deployed API origin (e.g. https://api.example.com).
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const TOKEN_KEY = 'ms_token';
+
+// Resolve a relative asset path (e.g. /covers/b2.jpg) against the API origin.
+// In dev API_BASE is empty so the Vite proxy handles it; in prod, prefix the API host.
+export function assetUrl(path) {
+  if (!path) return path;
+  if (/^https?:/.test(path)) return path;          // already absolute
+  if (path.startsWith('/')) return `${API_BASE}${path}`;
+  return path;
+}
 
 export function getToken()      { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
 export function setToken(t)     { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
@@ -11,7 +23,7 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
     const tok = getToken();
     if (tok) headers.Authorization = `Bearer ${tok}`;
   }
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,

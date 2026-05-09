@@ -87,6 +87,45 @@ returns fake tracking, emails print to server console).
 
 ---
 
+## Deploying the frontend to Vercel
+
+The Vite build is configured for Vercel via `vercel.json` at the repo root. Backend stays on its own host (Render / Railway / Fly — anything with a persistent disk for SQLite, or migrate to the included Postgres adapter at `server/src/db/pool.js`).
+
+### 1. Deploy the API somewhere first
+Pick any host that gives you a public HTTPS URL — e.g. Render's free web service:
+- New Web Service → connect this repo
+- Root Directory: `server`
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Add a persistent disk mounted at `/data` and set `DB_PATH=/data/medshelf.db` in env vars (so SQLite survives deploys)
+- Set `CLIENT_ORIGIN=https://your-vercel-domain.vercel.app` so CORS lets the frontend through
+
+Note the resulting API URL (e.g. `https://pam-api.onrender.com`).
+
+### 2. Deploy the frontend on Vercel
+1. New Project → import `ParamBarodia/pam-medical-books`
+2. Vercel auto-detects `vercel.json`; no overrides needed
+3. **Environment Variables** — add:
+   - `VITE_API_BASE_URL` = your API URL from step 1, no trailing slash
+4. Deploy
+
+The `vercel.json` rewrite rule sends every non-asset request to `/index.html` (SPA routing) and caches `/assets/*` for a year (Vite gives them content-hashed filenames, so this is safe).
+
+### 3. Custom domain (optional)
+- Vercel → Project → Settings → Domains → add `pammedicalbooks.in` (or whatever)
+- Update the registrar's DNS as Vercel instructs (CNAME or A record)
+- Once SSL provisions, update `CLIENT_ORIGIN` on the API to match
+
+### Local production-build smoke test
+```bash
+cd client
+VITE_API_BASE_URL=http://localhost:4000 npm run build
+npm run preview            # serves the built bundle on :4173
+```
+Note: the API also needs `CLIENT_ORIGIN=http://localhost:4173` for CORS to let the preview through, or browse with CORS disabled.
+
+---
+
 ## Going live (the production switch)
 
 ### 1. Set up Sanity catalog (~30 min)

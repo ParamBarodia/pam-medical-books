@@ -1,6 +1,7 @@
 // MedShelf shared visual components — all paper-warm + Indian retail design.
 // Pure presentation; data comes from props. State (cart/wishlist/auth) lives in App.
 import React, { useEffect, useRef, useState } from 'react';
+import { assetUrl } from './api.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Differentiation hooks & primitives
@@ -146,7 +147,7 @@ export function Icon({ name, size = 20, stroke = 1.6, ...rest }) {
 // ────────────────────────────────────────────────────────────────────────────
 export function BookCover({ book, width = 138, height = 196 }) {
   // 1. Real cover from Sanity CDN — preferred
-  const realImageUrl = book?.imageUrl || book?.fallbackUrl;
+  const realImageUrl = assetUrl(book?.imageUrl || book?.fallbackUrl);
   if (realImageUrl) {
     return (
       <img
