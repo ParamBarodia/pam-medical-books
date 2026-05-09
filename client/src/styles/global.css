@@ -466,25 +466,30 @@ html { scroll-behavior: smooth; }
   }
 }
 
-/* Navigation arrow — unobtrusive, appears on hover */
-.ms-hero-banner:hover .ms-hero-nav { opacity: 1; }
+/* Navigation arrow — always visible at low opacity so users notice the
+   carousel is interactive; brightens on hover. */
 .ms-hero-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 6;
-  width: 44px; height: 44px;
+  width: 48px; height: 48px;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: var(--ink);
   border: none;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.65;
+  box-shadow: 0 4px 16px -6px rgba(0,0,0,0.3);
   transition: opacity 220ms ease, background 180ms ease, transform 180ms ease;
 }
+.ms-hero-banner:hover .ms-hero-nav { opacity: 1; }
 .ms-hero-nav:hover {
   background: var(--paper);
-  transform: translateY(-50%) scale(1.06);
+  transform: translateY(-50%) scale(1.08);
+  opacity: 1;
 }
 
 /* Reduce-motion respect */

@@ -365,6 +365,7 @@ const FALLBACK_HERO_BOOK = {
 };
 
 const SLIDE_INTERVAL_MS = 6500;
+const FIRST_ADVANCE_MS = 2500;   // First peel fires sooner so the effect is immediately visible
 const FLIP_DURATION_MS = 1100;
 
 // Hero — auto-advancing carousel. The current page peels from the right edge
@@ -396,9 +397,17 @@ export function Hero({ books = [], onAdd, onOpen }) {
     }, FLIP_DURATION_MS);
   }, [peeling, index, slides.length]);
 
+  // First advance fires after a short delay so the user sees the page-peel
+  // effect immediately on page load. Subsequent advances use the longer
+  // reading interval.
+  const hasAdvancedOnceRef = useRef(false);
   useEffect(() => {
     if (paused || slides.length <= 1) return;
-    timerRef.current = setTimeout(goNext, SLIDE_INTERVAL_MS);
+    const delay = hasAdvancedOnceRef.current ? SLIDE_INTERVAL_MS : FIRST_ADVANCE_MS;
+    timerRef.current = setTimeout(() => {
+      hasAdvancedOnceRef.current = true;
+      goNext();
+    }, delay);
     return () => clearTimeout(timerRef.current);
   }, [index, paused, goNext, slides.length]);
 
