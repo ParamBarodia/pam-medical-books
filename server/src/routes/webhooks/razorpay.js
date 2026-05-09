@@ -8,10 +8,11 @@ import { Router } from 'express';
 import db from '../../db/index.js';
 import * as razorpay from '../../services/razorpay.js';
 import { markPaidAndFulfill } from '../orders.js';
+import { logger } from '../../logger.js';
 
 const r = Router();
 
-r.post('/razorpay', async (req, res) => {
+r.post('/', async (req, res) => {
   const rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body);
   const signature = req.headers['x-razorpay-signature'];
 
@@ -51,7 +52,7 @@ r.post('/razorpay', async (req, res) => {
     db.prepare('UPDATE webhook_events SET processed_at = ? WHERE event_id = ?').run(Date.now(), eventId);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[webhook/razorpay]', err);
+    logger.error({ err, eventId, eventType }, 'razorpay webhook handler failed');
     db.prepare('UPDATE webhook_events SET error = ? WHERE event_id = ?').run(err.message, eventId);
     res.status(500).json({ error: err.message });
   }

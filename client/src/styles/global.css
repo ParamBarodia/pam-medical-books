@@ -4,7 +4,7 @@
   --paper-3: #e6dcc6;
   --ink: #1c1a14;
   --ink-2: #3a352a;
-  --muted: #6f6856;
+  --muted: #5a5446;        /* WCAG AA: ~5.6:1 on --paper (was #6f6856 = 4.0:1, fail) */
   --rule: #2a2620;
   --rule-soft: #c8bfa8;
   --accent: #8b2a1f;

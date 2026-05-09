@@ -122,6 +122,8 @@ export function Icon({ name, size = 20, stroke = 1.6, ...rest }) {
     case 'heart-fill':   return <svg {...props} fill="currentColor" stroke="none"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z"/></svg>;
     case 'cart':         return <svg {...props}><path d="M3 4h2l2.5 11.5a2 2 0 0 0 2 1.5h7a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg>;
     case 'arrow-right':  return <svg {...props}><path d="M5 12h14M13 5l7 7-7 7"/></svg>;
+    case 'pause':        return <svg {...props}><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>;
+    case 'play':         return <svg {...props}><polygon points="6 4 20 12 6 20 6 4"/></svg>;
     case 'arrow-left':   return <svg {...props}><path d="M19 12H5M11 5l-7 7 7 7"/></svg>;
     case 'check':        return <svg {...props}><path d="m4 12 5 5L20 6"/></svg>;
     case 'check-circle': return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>;
@@ -206,7 +208,7 @@ export function UtilityStrip() {
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <a href="tel:07926578901" style={{ color: 'var(--ink-2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <a href="tel:+917926578901" style={{ color: 'var(--ink-2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Icon name="phone" size={12} stroke={2} aria-hidden="true" /> +91 79 2657 8901
           </a>
           <span>Mon–Sat · 10:30 AM – 7 PM · Ellis Bridge, Ahmedabad</span>
@@ -368,6 +370,14 @@ const SLIDE_INTERVAL_MS = 6500;
 const FIRST_ADVANCE_MS = 2500;   // First peel fires sooner so the effect is immediately visible
 const FLIP_DURATION_MS = 1100;
 
+// Read OS-level reduced-motion preference. Used to pause the JS-driven
+// auto-advance entirely (the CSS peel is still scoped via @media but the
+// JS interval would otherwise keep advancing slides invisibly).
+function prefersReducedMotion() {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 // Hero — auto-advancing carousel. The current page peels from the right edge
 // using an animated CSS clip-path while a "fold shadow" pseudo-element grows
 // from the same edge to fake the curl. The next slide sits underneath, fully
@@ -376,8 +386,19 @@ export function Hero({ books = [], onAdd, onOpen }) {
   const slides = books.length ? books : [FALLBACK_HERO_BOOK];
   const [index, setIndex] = useState(0);
   const [peeling, setPeeling] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(false);          // hover/focus pause
+  const [userPaused, setUserPaused] = useState(false);  // explicit toggle
   const timerRef = useRef(null);
+  const bannerRef = useRef(null);
+
+  const goPrev = useCallback(() => {
+    if (peeling || slides.length <= 1) return;
+    setPeeling(true);
+    setTimeout(() => {
+      setIndex((i) => (i - 1 + slides.length) % slides.length);
+      setPeeling(false);
+    }, FLIP_DURATION_MS);
+  }, [peeling, slides.length]);
 
   const goNext = useCallback(() => {
     if (peeling || slides.length <= 1) return;
@@ -399,17 +420,19 @@ export function Hero({ books = [], onAdd, onOpen }) {
 
   // First advance fires after a short delay so the user sees the page-peel
   // effect immediately on page load. Subsequent advances use the longer
-  // reading interval.
+  // reading interval. Paused outright if the OS has reduced-motion on, or
+  // if the user clicked the pause button.
   const hasAdvancedOnceRef = useRef(false);
   useEffect(() => {
-    if (paused || slides.length <= 1) return;
+    if (paused || userPaused || slides.length <= 1) return;
+    if (prefersReducedMotion()) return;
     const delay = hasAdvancedOnceRef.current ? SLIDE_INTERVAL_MS : FIRST_ADVANCE_MS;
     timerRef.current = setTimeout(() => {
       hasAdvancedOnceRef.current = true;
       goNext();
     }, delay);
     return () => clearTimeout(timerRef.current);
-  }, [index, paused, goNext, slides.length]);
+  }, [index, paused, userPaused, goNext, slides.length]);
 
   const current = slides[index];
   const next = slides[(index + 1) % slides.length];
@@ -418,9 +441,21 @@ export function Hero({ books = [], onAdd, onOpen }) {
     <section style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule)', padding: '24px 32px' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
         <div
+          ref={bannerRef}
           className="ms-hero-banner"
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Featured medical books"
+          tabIndex={0}
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+            else if (e.key === ' ' || e.key === 'p') { e.preventDefault(); setUserPaused((p) => !p); }
+          }}
           style={{
             position: 'relative',
             minHeight: 420,
@@ -440,20 +475,42 @@ export function Hero({ books = [], onAdd, onOpen }) {
           </div>
 
           {slides.length > 1 && (
-            <button onClick={goNext} aria-label="Next slide"
-              className="ms-hero-nav" style={{ right: 16 }}>
-              <Icon name="arrow-right" size={18} />
-            </button>
+            <>
+              <button onClick={goPrev} aria-label="Previous slide"
+                className="ms-hero-nav" style={{ left: 16 }}>
+                <Icon name="arrow-right" size={18} style={{ transform: 'rotate(180deg)' }} />
+              </button>
+              <button onClick={goNext} aria-label="Next slide"
+                className="ms-hero-nav" style={{ right: 16 }}>
+                <Icon name="arrow-right" size={18} />
+              </button>
+              <button
+                onClick={() => setUserPaused((p) => !p)}
+                aria-label={userPaused ? 'Resume auto-advance' : 'Pause auto-advance'}
+                aria-pressed={userPaused}
+                className="ms-hero-nav"
+                style={{ right: 16, top: 16, transform: 'none', width: 36, height: 36 }}>
+                <Icon name={userPaused ? 'play' : 'pause'} size={14} />
+              </button>
+            </>
           )}
 
+          {/* Polite live region announcing the current slide for screen readers */}
+          <div role="status" aria-live="polite" className="sr-only">
+            Slide {index + 1} of {slides.length}: {slides[index]?.title}
+          </div>
+
           {slides.length > 1 && (
-            <div style={{
+            <div role="tablist" aria-label="Choose a slide" style={{
               position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)',
               display: 'flex', gap: 6, zIndex: 6,
             }}>
               {slides.map((_, i) => (
                 <button key={i}
                   onClick={() => goTo(i)}
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-current={i === index ? 'true' : undefined}
                   aria-label={`Go to slide ${i + 1}`}
                   style={{
                     width: i === index ? 22 : 7, height: 7, borderRadius: 4,

@@ -1,0 +1,7 @@
+# Pam Medical Book House — robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /track
+# (sitemap.xml is generated server-side once the live catalogue is loaded)
+Sitemap: https://pammedicalbooks.in/sitemap.xml

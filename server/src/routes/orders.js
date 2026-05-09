@@ -41,13 +41,22 @@ function priceItems(items) {
   return priced;
 }
 
-function calcTotals(priced) {
+// COD attracts a flat handling fee that's collected at delivery.
+const COD_FEE = 49;
+
+function calcTotals(priced, paymentMethod) {
   const subtotal = priced.reduce((s, i) => s + i.unit_price * i.qty, 0);
   const saved    = priced.reduce((s, i) => s + (i.unit_mrp - i.unit_price) * i.qty, 0);
   const tier     = subtotal >= 10000 ? 200 : subtotal >= 5000 ? 100 : 0;
   const shipping = subtotal >= 999 ? 0 : 49;
-  const total    = subtotal - tier + shipping;
-  return { subtotal, saved, tier, shipping, total };
+  const codFee   = paymentMethod === 'cod' ? COD_FEE : 0;
+  // Surface COD fee inside `shipping` so the row's parts always sum to total
+  // (subtotal - tier + shipping = total). Was previously appended after the
+  // fact, leaving DB row totals off by ₹49 for every COD order — broke
+  // refund + reconciliation math.
+  const totalShipping = shipping + codFee;
+  const total    = subtotal - tier + totalShipping;
+  return { subtotal, saved, tier, shipping: totalShipping, total };
 }
 
 function validateAddress(a) {
@@ -97,13 +106,27 @@ r.post('/orders/checkout', async (req, res, next) => {
     try { priced = priceItems(items); }
     catch (e) { return res.status(400).json({ error: e.message }); }
 
-    const totals = calcTotals(priced);
-    if (paymentMethod === 'cod') totals.total += 49;     // COD handling fee
+    const totals = calcTotals(priced, paymentMethod);
 
     const orderId = newOrderId();
 
-    // Persist customer for prefill on next visit
+    // Persist customer for prefill on next visit + atomically reserve stock.
+    // Stock decrement happens inside the same transaction with a conditional
+    // WHERE clause so two concurrent checkouts can't both succeed when only
+    // one unit is left — the second one's UPDATE has changes=0 and we abort
+    // the whole transaction.
+    const decStock = db.prepare('UPDATE books SET stock = stock - ? WHERE id = ? AND stock >= ?');
+    let oversoldBookId = null;
     const tx = db.transaction(() => {
+      // Atomic stock reservation FIRST — abort the whole tx if any item is short.
+      for (const p of priced) {
+        if (!p.book_id) continue;     // bundles don't track stock per-line
+        const r = decStock.run(p.qty, p.book_id, p.qty);
+        if (r.changes === 0) {
+          oversoldBookId = p.book_id;
+          throw new Error(`OVERSELL:${p.book_id}`);
+        }
+      }
       db.prepare(`
         INSERT INTO customers (phone, name, email, last_address_json)
         VALUES (?, ?, ?, ?)
@@ -127,12 +150,17 @@ r.post('/orders/checkout', async (req, res, next) => {
       `);
       for (const p of priced) ins.run(orderId, p.book_id, p.bundle_id, p.title, p.qty, p.unit_price, p.unit_mrp);
     });
-    tx();
+    try { tx(); }
+    catch (e) {
+      if (e.message?.startsWith('OVERSELL:')) {
+        return res.status(409).json({ error: 'A book in your cart just sold out — please try again', bookId: oversoldBookId });
+      }
+      throw e;
+    }
 
     // COD: no Razorpay order needed; SMS the customer + return immediately.
+    // (Stock was already atomically decremented inside the order tx above.)
     if (paymentMethod === 'cod') {
-      // Decrement stock now (real cash collected on delivery; refund on cancel)
-      decrementLocalStock(orderId);
       kickoffPostOrderSideEffects(orderId).catch((e) => logger.error('[post-order]', e));
       await notify.notify(phone, 'order_placed', { orderId, total: totals.total })
                   .catch((e) => logger.error('[notify]', e));
@@ -191,12 +219,8 @@ r.post('/orders/:id/verify', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── Internal: decrement local stock for each book in an order ─────────────
-function decrementLocalStock(orderId) {
-  const items = db.prepare('SELECT book_id, qty FROM order_items WHERE order_id = ?').all(orderId);
-  const dec = db.prepare('UPDATE books SET stock = MAX(stock - ?, 0) WHERE id = ?');
-  for (const it of items) if (it.book_id) dec.run(it.qty, it.book_id);
-}
+// (Stock decrement now happens atomically inside the order-creation
+// transaction in the /checkout handler — no separate decrementLocalStock.)
 
 // ─── Internal: post-order side effects (Shiprocket + Sanity stock) ─────────
 async function kickoffPostOrderSideEffects(orderId) {
@@ -228,7 +252,6 @@ async function markPaidAndFulfill(order, paymentId) {
   // Skip side-effects to avoid double-shipment / double-notify.
   if (!flip.changes) return;
 
-  decrementLocalStock(order.id);
   await kickoffPostOrderSideEffects(order.id);
 
   await notify.notify(order.customer_phone, 'payment_received',

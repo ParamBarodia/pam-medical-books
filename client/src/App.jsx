@@ -3,7 +3,7 @@
 //   /         → main store
 //   /track    → public order tracking page (phone lookup)
 //   /admin/*  → admin dashboard
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { api } from './api.js';
 import { SANITY_ENABLED, fetchBooksByShelf, searchBooks, fetchBundles, fetchTestimonials } from './sanity.js';
 import { useCart, useFetch } from './hooks.js';
@@ -14,13 +14,35 @@ import {
   SectionOrnament,
 } from './components.jsx';
 import { ProductModal, CartDrawer, CheckoutModal } from './modals.jsx';
-import TrackPage from './track.jsx';
-import AdminApp from './admin/AdminApp.jsx';
+
+// /track and /admin are visited by < 1% of traffic — code-split so they
+// don't bloat the storefront's first paint.
+const TrackPage = lazy(() => import('./track.jsx'));
+const AdminApp  = lazy(() => import('./admin/AdminApp.jsx'));
+
+const RouteFallback = () => (
+  <div role="status" aria-live="polite" style={{
+    minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'var(--serif)', fontStyle: 'italic', color: 'var(--muted)',
+  }}>Loading…</div>
+);
 
 export default function App() {
+  // Per-route document.title (SPA — no SSR, so we use useEffect)
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/track')) document.title = 'Track your order · Pam Medical Books';
+    else if (path.startsWith('/admin')) document.title = 'Admin · Pam Medical Books';
+    else document.title = "Pam Medical Books · Ahmedabad's Medical Bookseller Since 2020";
+  }, []);
+
   const path = window.location.pathname;
-  if (path.startsWith('/track')) return <TrackPage />;
-  if (path.startsWith('/admin')) return <AdminApp />;
+  if (path.startsWith('/track')) return (
+    <Suspense fallback={<RouteFallback />}><TrackPage /></Suspense>
+  );
+  if (path.startsWith('/admin')) return (
+    <Suspense fallback={<RouteFallback />}><AdminApp /></Suspense>
+  );
   return <Storefront />;
 }
 

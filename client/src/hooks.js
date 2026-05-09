@@ -1,6 +1,43 @@
 // React hooks. Cart + wishlist are localStorage-only (no accounts in this app).
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+// useDialogFocus — when a modal/drawer mounts, move focus into it and trap
+// Tab cycling within. On unmount, restore focus to the previously focused
+// element. Pass the dialog's ref. Optional onClose handler binds Escape.
+export function useDialogFocus(dialogRef, onClose) {
+  useEffect(() => {
+    const previous = document.activeElement;
+    const node = dialogRef.current;
+    if (!node) return;
+
+    // Move focus to the first focusable child, falling back to the dialog itself
+    const focusable = () => Array.from(node.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null);
+
+    const list = focusable();
+    (list[0] || node).focus({ preventScroll: true });
+
+    function onKey(e) {
+      if (e.key === 'Escape' && onClose) { onClose(); return; }
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    node.addEventListener('keydown', onKey);
+    return () => {
+      node.removeEventListener('keydown', onKey);
+      if (previous && typeof previous.focus === 'function') previous.focus({ preventScroll: true });
+    };
+  // We intentionally only bind once on mount — re-running would steal focus mid-interaction
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 // ── useFetch ──────────────────────────────────────────────────────────────
 export function useFetch(fn, deps = []) {
   const [data, setData] = useState(null);

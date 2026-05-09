@@ -25,12 +25,35 @@ const PORT = Number(process.env.PORT) || 4000;
 // limiting to work correctly behind a hosting platform.
 app.set('trust proxy', 1);
 
-// Security headers (CSP intentionally relaxed because we serve a SPA that
-// inlines Razorpay checkout JS and uses external CDNs for fonts/covers).
+// Security headers + a sized CSP. Allowlist covers exactly what we use:
+//   - Razorpay checkout JS + its API + iframe target
+//   - Google Fonts (CSS + woff2)
+//   - Open Library + Google Books cover hosts (if we ever direct-link)
+//   - India Post pincode lookup (called from the checkout client)
+// Tighten further once we know the prod CDN host for cover-images.
 app.use(helmet({
-  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'default-src':  ["'self'"],
+      'script-src':   ["'self'", 'https://checkout.razorpay.com'],
+      'connect-src':  ["'self'", 'https://api.razorpay.com', 'https://lumberjack.razorpay.com',
+                       'https://api.postalpincode.in', 'https://covers.openlibrary.org',
+                       'https://books.google.com'],
+      'img-src':      ["'self'", 'data:', 'https://covers.openlibrary.org', 'https://books.google.com'],
+      'frame-src':    ['https://api.razorpay.com', 'https://checkout.razorpay.com'],
+      'font-src':     ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      // 'unsafe-inline' for styles is required by our inline-style-heavy
+      // React components; tighten via nonce in a later pass.
+      'style-src':    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      'object-src':   ["'none'"],
+      'base-uri':     ["'self'"],
+      'form-action':  ["'self'"],
+      'upgrade-insecure-requests': [],
+    },
+  },
 }));
 
 app.use(cors({

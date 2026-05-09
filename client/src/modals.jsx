@@ -1,8 +1,9 @@
 // Modals — phone-only model. ProductModal, CartDrawer, CheckoutModal.
 // No AuthModal / AccountDrawer / WishlistDrawer (those needed accounts).
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon, BookCover } from './components.jsx';
 import { api } from './api.js';
+import { useDialogFocus } from './hooks.js';
 
 function loadRazorpayScript() {
   return new Promise((resolve, reject) => {
@@ -26,22 +27,24 @@ function loadRazorpayScript() {
 // ────────────────────────────────────────────────────────────────────────────
 export function ProductModal({ book, onClose, onAdd }) {
   const [tab, setTab] = useState('description');
+  const dialogRef = useRef(null);
   const discount = Math.round((1 - book.price / book.mrp) * 100);
   const stock = book.stock ?? 0;
 
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
-  }, [onClose]);
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+  useDialogFocus(dialogRef, onClose);
 
   return (
-    <div onClick={onClose} role="dialog" aria-modal="true" style={{
+    <div onClick={onClose} style={{
       position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.78)', backdropFilter: 'blur(4px)',
       zIndex: 95, animation: 'fade .2s ease-out', overflowY: 'auto', padding: '40px 20px',
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div onClick={e => e.stopPropagation()} ref={dialogRef} role="dialog" aria-modal="true"
+        aria-labelledby="product-modal-title" tabIndex={-1}
+        style={{
         maxWidth: 1080, margin: '0 auto', background: 'var(--paper)',
         position: 'relative', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.5)',
       }}>
@@ -56,7 +59,7 @@ export function ProductModal({ book, onClose, onAdd }) {
           </div>
           <div style={{ padding: '40px 44px' }}>
             <div className="eyebrow" style={{ color: 'var(--muted)' }}>{book.publisher || 'Pam Medical Books'} · {book.category}</div>
-            <h1 className="display" style={{ fontSize: 'clamp(22px, 4vw, 32px)', lineHeight: 1.1, margin: '8px 0 6px', fontWeight: 500 }}>{book.title}</h1>
+            <h1 id="product-modal-title" className="display" style={{ fontSize: 'clamp(22px, 4vw, 32px)', lineHeight: 1.1, margin: '8px 0 6px', fontWeight: 500 }}>{book.title}</h1>
             <div className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic' }}>
               by <span style={{ color: 'var(--ink)', fontStyle: 'normal', fontWeight: 600 }}>{book.author}</span> · {book.edition}
             </div>
@@ -112,16 +115,18 @@ export function ProductModal({ book, onClose, onAdd }) {
 // CartDrawer
 // ────────────────────────────────────────────────────────────────────────────
 export function CartDrawer({ items, onUpdateQty, onClose, onCheckout }) {
+  const dialogRef = useRef(null);
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const saved    = items.reduce((s, i) => s + (i.mrp - i.price) * i.qty, 0);
   const tier     = subtotal >= 10000 ? 200 : subtotal >= 5000 ? 100 : 0;
   const shipping = subtotal >= 999 ? 0 : 49;
   const total    = subtotal - tier + shipping;
+  useDialogFocus(dialogRef, onClose);
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.7)', zIndex: 90, animation: 'fade .2s ease-out' }}>
-      <div onClick={e => e.stopPropagation()} className="ms-cart-drawer"
-        role="dialog" aria-modal="true" aria-label="Cart"
+      <div onClick={e => e.stopPropagation()} ref={dialogRef} className="ms-cart-drawer"
+        role="dialog" aria-modal="true" aria-label="Cart" tabIndex={-1}
         style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 440, maxWidth: '100vw', background: 'var(--paper)',
           display: 'flex', flexDirection: 'column', boxShadow: '-20px 0 40px rgba(0,0,0,0.4)', animation: 'slide-up .22s ease-out' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--rule-soft)', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -224,6 +229,7 @@ function isCompleteAddress(a) {
 }
 
 export function CheckoutModal({ items, onClose, onComplete }) {
+  const dialogRef = useRef(null);
   const [step, setStep] = useState(STEP.PHONE);
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -242,10 +248,9 @@ export function CheckoutModal({ items, onClose, onComplete }) {
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    const onKey = e => { if (e.key === 'Escape' && step !== STEP.DONE) onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); };
-  }, [onClose, step]);
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+  useDialogFocus(dialogRef, () => { if (step !== STEP.DONE) onClose(); });
 
   const phoneValid = /^\d{10}$/.test(phone.replace(/\D/g, ''));
   const addrValid  = useSavedAddress
@@ -377,7 +382,8 @@ export function CheckoutModal({ items, onClose, onComplete }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.85)', zIndex: 100, overflowY: 'auto', padding: '32px 20px' }}>
-      <div role="dialog" aria-modal="true" style={{ maxWidth: 720, margin: '0 auto', background: 'var(--paper)', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.6)' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Secure checkout" tabIndex={-1}
+        style={{ maxWidth: 720, margin: '0 auto', background: 'var(--paper)', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.6)' }}>
         <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--rule-soft)', display: 'flex', alignItems: 'center', gap: 16 }}>
           <Icon name="lock" size={18} />
           <div className="display" style={{ fontSize: 22, fontWeight: 500, flex: 1 }}>Secure Checkout</div>
