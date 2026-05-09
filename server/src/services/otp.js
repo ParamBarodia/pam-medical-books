@@ -3,17 +3,20 @@
 import crypto from 'node:crypto';
 import db from '../db/index.js';
 import * as sms from './sms.js';
+import { logger } from '../logger.js';
 
 const TTL_MS = 10 * 60 * 1000;            // 10 minutes
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 60 * 1000;     // 60 seconds between resends to the same phone
 
 export function normalizePhone(input) {
-  const digits = String(input || '').replace(/\D/g, '');
+  const str = String(input || '');
+  const digits = str.replace(/\D/g, '');
   if (digits.length === 10) return `+91${digits}`;
   if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
   if (digits.length === 13 && digits.startsWith('091')) return `+${digits.slice(1)}`;
-  if (input.startsWith('+') && digits.length >= 11) return input.startsWith('+') ? `+${digits}` : `+${digits}`;
+  // Accept already-prefixed E.164 numbers as long as they're plausible length
+  if (str.startsWith('+') && digits.length >= 11) return `+${digits}`;
   return null;   // invalid
 }
 
@@ -48,7 +51,7 @@ export async function issueOtp(phone, purpose) {
   `).run(phone, code, purpose, expiresAt);
 
   await sms.sendOtpSms(phone, code).catch((e) => {
-    console.error(`[otp] SMS send failed for ${phone}:`, e.message);
+    logger.error({ err: e, phone: phone.slice(0, 6) + '****' }, 'OTP SMS send failed');
     // Don't throw — in mock mode the OTP is in the server log, dev can read it
   });
 

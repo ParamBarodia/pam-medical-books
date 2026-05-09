@@ -12,6 +12,7 @@ import * as shiprocket from '../services/shiprocket.js';
 import * as sanity from '../services/sanity.js';
 import * as otp from '../services/otp.js';
 import * as notify from '../services/notify.js';
+import { logger } from '../logger.js';
 
 const r = Router();
 
@@ -132,9 +133,9 @@ r.post('/orders/checkout', async (req, res, next) => {
     if (paymentMethod === 'cod') {
       // Decrement stock now (real cash collected on delivery; refund on cancel)
       decrementLocalStock(orderId);
-      kickoffPostOrderSideEffects(orderId).catch((e) => console.error('[post-order]', e));
+      kickoffPostOrderSideEffects(orderId).catch((e) => logger.error('[post-order]', e));
       await notify.notify(phone, 'order_placed', { orderId, total: totals.total })
-                  .catch((e) => console.error('[notify]', e));
+                  .catch((e) => logger.error('[notify]', e));
       return res.status(201).json({ orderId, paymentMethod: 'cod', amount: totals.total, totals, status: 'placed' });
     }
 
@@ -214,7 +215,7 @@ async function kickoffPostOrderSideEffects(orderId) {
     const ship = await shiprocket.createShiprocketOrder({ order, items, address });
     db.prepare(`UPDATE orders SET shiprocket_order_id = ?, shiprocket_shipment_id = ?, tracking_url = ? WHERE id = ?`)
       .run(ship.order_id, ship.shipment_id, ship.tracking_url, orderId);
-  } catch (e) { console.error('[shiprocket]', e.message); }
+  } catch (e) { logger.error('[shiprocket]', e.message); }
 }
 
 // Mark order paid → trigger post-payment chain. Idempotent (gated by status).
@@ -232,7 +233,7 @@ async function markPaidAndFulfill(order, paymentId) {
 
   await notify.notify(order.customer_phone, 'payment_received',
     { orderId: order.id, total: order.total })
-    .catch((e) => console.error('[notify]', e));
+    .catch((e) => logger.error('[notify]', e));
 }
 
 export { markPaidAndFulfill };

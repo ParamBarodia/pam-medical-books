@@ -2,6 +2,7 @@
 // In test mode (no env vars), returns mock data so dev still works end-to-end.
 import 'dotenv/config';
 import crypto from 'node:crypto';
+import { logger } from '../logger.js';
 
 const KEY_ID     = process.env.RAZORPAY_KEY_ID;
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -62,7 +63,7 @@ export function verifyPaymentSignature({ razorpay_order_id, razorpay_payment_id,
 export function verifyWebhookSignature(rawBody, signatureHeader) {
   if (IS_MOCK) return true;
   if (!WEBHOOK_SECRET) {
-    console.error('[razorpay] RAZORPAY_WEBHOOK_SECRET not set — rejecting webhook');
+    logger.error('RAZORPAY_WEBHOOK_SECRET not set — rejecting webhook');
     return false;
   }
   if (!signatureHeader) return false;

@@ -2,6 +2,7 @@
 // Centralises every transactional message so the channel is swappable per env.
 import * as wa from './whatsapp.js';
 import * as sms from './sms.js';
+import { logger } from '../logger.js';
 
 // templateKey → { whatsapp template name, SMS msg builder }
 const TEMPLATES = {
@@ -48,7 +49,7 @@ export async function notify(phone, templateKey, vars = {}) {
     await sms.sendGenericSms(phone, tpl.sms(vars));
     return { channel: 'sms', ok: true, fellBack: true };
   } catch (e) {
-    console.error(`[notify] both channels failed for ${phone} / ${templateKey}:`, e.message);
+    logger.error({ err: e, templateKey, phone: phone.slice(0, 6) + '****' }, 'notification failed on all channels');
     return { channel: 'none', ok: false, error: e.message };
   }
 }

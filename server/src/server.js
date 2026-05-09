@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
+import { logger, httpLogger } from './logger.js';
 import { adminMiddleware } from './middleware/admin-auth.js';
 import productsRouter from './routes/products.js';
 import customerRouter from './routes/customer.js';
@@ -65,6 +66,7 @@ app.use('/api/webhooks/razorpay',
 );
 
 app.use(express.json({ limit: '256kb' }));
+app.use(httpLogger);        // structured per-request logging w/ request IDs
 app.use(adminMiddleware);   // sets req.admin if admin cookie is valid
 
 // Apply rate limiters to specific endpoints
@@ -90,18 +92,29 @@ app.use('/api/webhooks/shiprocket', shiprocketWebhook);
 
 // 404 + error
 app.use((_req, res) => res.status(404).json({ error: 'not found' }));
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: err.message || 'server error' });
+app.use((err, req, res, _next) => {
+  // err is logged by httpLogger via customErrorMessage; keep response opaque.
+  req.log?.error({ err }, 'unhandled error');
+  // Don't leak err.message in prod — could expose internals.
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production' ? 'server error' : (err.message || 'server error'),
+    requestId: req.id,
+  });
 });
 
+// Start the daily cleanup loop (purges expired OTPs + admin sessions every 24h).
+import('./jobs/daily-cleanup.js').then((m) => m.scheduleDailyCleanup()).catch((e) =>
+  logger.error({ err: e }, 'failed to schedule daily cleanup'),
+);
+
 app.listen(PORT, () => {
-  console.log(`Pam Medical Books API listening on http://localhost:${PORT}`);
-  console.log(`  Razorpay: ${process.env.RAZORPAY_KEY_ID && !process.env.RAZORPAY_KEY_ID.includes('mock') ? 'LIVE' : 'mock'}`);
-  console.log(`  Shiprocket: ${process.env.SHIPROCKET_EMAIL ? 'LIVE' : 'mock'}`);
-  console.log(`  SMS (MSG91): ${process.env.MSG91_AUTH_KEY ? 'LIVE' : 'mock (codes printed to console)'}`);
-  console.log(`  WhatsApp: ${process.env.WHATSAPP_TOKEN ? 'LIVE' : 'stub (falls back to SMS)'}`);
-  console.log(`  Sanity: ${process.env.SANITY_PROJECT_ID ? 'LIVE' : 'mock (using local DB only)'}`);
-  const admins = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
-  console.log(`  Admin phones: ${admins.length ? admins.join(', ') : '⚠️  none set (no one can log in to /admin)'}`);
+  logger.info({
+    port: PORT,
+    razorpay: process.env.RAZORPAY_KEY_ID && !process.env.RAZORPAY_KEY_ID.includes('mock') ? 'LIVE' : 'mock',
+    shiprocket: process.env.SHIPROCKET_EMAIL ? 'LIVE' : 'mock',
+    sms: process.env.MSG91_AUTH_KEY ? 'LIVE' : 'mock',
+    whatsapp: process.env.WHATSAPP_TOKEN ? 'LIVE' : 'stub',
+    sanity: process.env.SANITY_PROJECT_ID ? 'LIVE' : 'mock',
+    adminPhones: (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean).length,
+  }, `Pam Medical Books API listening on http://localhost:${PORT}`);
 });
