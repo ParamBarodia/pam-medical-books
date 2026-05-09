@@ -108,9 +108,22 @@ r.post('/orders/:id/verify', requireAuth, async (req, res, next) => {
     const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.uid);
     if (!order) return res.status(404).json({ error: 'order not found' });
 
-    // In test mode, skip signature check; in live mode, verify
-    if (razorpay_signature && !razorpay.verifyPaymentSignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature })) {
-      return res.status(400).json({ error: 'invalid signature' });
+    // COD orders complete on delivery, not via this endpoint.
+    if (order.payment_method === 'cod') {
+      return res.status(400).json({ error: 'COD orders are not verified online' });
+    }
+
+    // Live mode: signature is mandatory and must verify against the stored order id.
+    if (!razorpay.IS_MOCK_RZP) {
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ error: 'razorpay_order_id, razorpay_payment_id, razorpay_signature required' });
+      }
+      if (razorpay_order_id !== order.razorpay_order_id) {
+        return res.status(400).json({ error: 'order id mismatch' });
+      }
+      if (!razorpay.verifyPaymentSignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature })) {
+        return res.status(400).json({ error: 'invalid signature' });
+      }
     }
 
     await markPaidAndFulfill(order, razorpay_payment_id || ('pay_test_' + Date.now().toString(36)));

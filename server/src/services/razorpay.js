@@ -36,23 +36,38 @@ export async function refundPayment(paymentId, amount) {
   return await rzp.payments.refund(paymentId, { amount: amount * 100 });
 }
 
+// Constant-time string compare that won't throw on length mismatch.
+function safeEqualHex(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Verify the signature returned by Razorpay's checkout JS after a successful payment
 export function verifyPaymentSignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
   if (IS_MOCK) return true;
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) return false;
   const expected = crypto
     .createHmac('sha256', KEY_SECRET)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature));
+  return safeEqualHex(expected, razorpay_signature);
 }
 
-// Verify webhook signature (separate secret from KEY_SECRET)
+// Verify webhook signature. In live mode WEBHOOK_SECRET is mandatory — if it's
+// missing we fail closed (return false), so misconfigured deploys reject all
+// webhooks instead of silently trusting them.
 export function verifyWebhookSignature(rawBody, signatureHeader) {
-  if (IS_MOCK || !WEBHOOK_SECRET) return true;
+  if (IS_MOCK) return true;
+  if (!WEBHOOK_SECRET) {
+    console.error('[razorpay] RAZORPAY_WEBHOOK_SECRET not set — rejecting webhook');
+    return false;
+  }
+  if (!signatureHeader) return false;
   const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader || ''));
-  } catch { return false; }
+  return safeEqualHex(expected, signatureHeader);
 }
 
 export const PUBLIC_KEY_ID = KEY_ID || 'rzp_test_mock';

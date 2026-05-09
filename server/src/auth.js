@@ -1,11 +1,23 @@
 // JWT auth helpers
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
-const SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
+// JWT_SECRET is mandatory in production. In NODE_ENV=development we generate
+// a random per-boot secret so devs can clone-and-run with no setup; this means
+// dev sessions don't survive a server restart, which is the right tradeoff.
+const SECRET = (() => {
+  const fromEnv = process.env.JWT_SECRET;
+  if (fromEnv && fromEnv.length >= 32 && !/change[_-]?me/i.test(fromEnv)) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required in production and must be at least 32 chars (and not the placeholder "change_me…")');
+  }
+  console.warn('[auth] JWT_SECRET missing or weak — generating ephemeral dev secret. Set JWT_SECRET in .env to make sessions persist.');
+  return crypto.randomBytes(48).toString('hex');
+})();
 
 export function hashPassword(plain) {
-  return bcrypt.hashSync(plain, 10);
+  return bcrypt.hashSync(plain, 12);
 }
 export function verifyPassword(plain, hash) {
   return bcrypt.compareSync(plain, hash);
@@ -34,6 +46,7 @@ export function requireAuth(req, res, next) {
 
 export function generateReferralCode(name) {
   const base = (name || 'med').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 8) || 'MED';
-  const suffix = Math.floor(100 + Math.random() * 900);
+  // 4 random base32 chars (~1M space) — unguessable, fits human-typeable budget
+  const suffix = crypto.randomBytes(3).readUIntBE(0, 3).toString(32).slice(-4).toUpperCase();
   return `${base}${suffix}`;
 }

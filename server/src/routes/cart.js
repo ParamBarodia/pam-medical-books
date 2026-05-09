@@ -37,20 +37,34 @@ function getCart(userId) {
 // GET /api/cart
 r.get('/cart', requireAuth, (req, res) => res.json(getCart(req.user.uid)));
 
+// Per-line cap. Bookstores that don't sell whole pallets through retail
+// shouldn't accept qty=9999 from a JSON body.
+const MAX_QTY_PER_LINE = 50;
+
+function normalizeQty(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_QTY_PER_LINE) return null;
+  return n;
+}
+
 // POST /api/cart  { bookId, qty?, isBundle? }
 r.post('/cart', requireAuth, (req, res) => {
-  const { bookId, qty = 1, isBundle = false } = req.body || {};
+  const { bookId, qty: rawQty = 1, isBundle = false } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  const qty = normalizeQty(rawQty);
+  if (qty === null) return res.status(400).json({ error: `qty must be an integer between 1 and ${MAX_QTY_PER_LINE}` });
+
   const exists = isBundle
     ? db.prepare('SELECT id FROM bundles WHERE id = ?').get(bookId)
     : db.prepare('SELECT id FROM books WHERE id = ?').get(bookId);
   if (!exists) return res.status(404).json({ error: 'product not found' });
 
-  // Upsert
+  // Upsert with cap enforced on the merged qty too
   const existing = db.prepare('SELECT id, qty FROM cart_items WHERE user_id = ? AND book_id = ? AND is_bundle = ?')
     .get(req.user.uid, bookId, isBundle ? 1 : 0);
   if (existing) {
-    db.prepare('UPDATE cart_items SET qty = qty + ? WHERE id = ?').run(qty, existing.id);
+    const merged = Math.min(existing.qty + qty, MAX_QTY_PER_LINE);
+    db.prepare('UPDATE cart_items SET qty = ? WHERE id = ?').run(merged, existing.id);
   } else {
     db.prepare('INSERT INTO cart_items (user_id, book_id, qty, is_bundle) VALUES (?, ?, ?, ?)')
       .run(req.user.uid, bookId, qty, isBundle ? 1 : 0);
@@ -61,13 +75,17 @@ r.post('/cart', requireAuth, (req, res) => {
 // PATCH /api/cart  { bookId, isBundle?, delta }   delta is +1 / -1
 r.patch('/cart', requireAuth, (req, res) => {
   const { bookId, isBundle = false, delta } = req.body || {};
-  if (!bookId || typeof delta !== 'number') return res.status(400).json({ error: 'bookId + delta required' });
+  if (!bookId || !Number.isInteger(delta) || delta < -MAX_QTY_PER_LINE || delta > MAX_QTY_PER_LINE) {
+    return res.status(400).json({ error: 'bookId + integer delta required' });
+  }
   const row = db.prepare('SELECT id, qty FROM cart_items WHERE user_id = ? AND book_id = ? AND is_bundle = ?')
     .get(req.user.uid, bookId, isBundle ? 1 : 0);
   if (!row) return res.status(404).json({ error: 'not in cart' });
   const newQty = row.qty + delta;
   if (newQty <= 0) {
     db.prepare('DELETE FROM cart_items WHERE id = ?').run(row.id);
+  } else if (newQty > MAX_QTY_PER_LINE) {
+    return res.status(400).json({ error: `max ${MAX_QTY_PER_LINE} per line` });
   } else {
     db.prepare('UPDATE cart_items SET qty = ? WHERE id = ?').run(newQty, row.id);
   }
