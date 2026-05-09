@@ -230,7 +230,8 @@ export function CheckoutModal({ items, onClose, onComplete }) {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState(blankAddress);
   const [editingAddress, setEditingAddress] = useState(false);
-  const [savedAddress, setSavedAddress] = useState(null);   // for "use saved address" recap
+  const [savedHint, setSavedHint] = useState(null);   // {nameHint, pincodeHint} — server-masked
+  const [useSavedAddress, setUseSavedAddress] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [otpCode, setOtpCode] = useState('');
   const [otpExpiresAt, setOtpExpiresAt] = useState(null);
@@ -247,7 +248,9 @@ export function CheckoutModal({ items, onClose, onComplete }) {
   }, [onClose, step]);
 
   const phoneValid = /^\d{10}$/.test(phone.replace(/\D/g, ''));
-  const addrValid  = name && isCompleteAddress(address);
+  const addrValid  = useSavedAddress
+    ? !editingAddress    // saved address path → server will resolve
+    : (name && isCompleteAddress(address));
 
   // Pincode → city/state autofill. Fires when 6 digits entered.
   useEffect(() => {
@@ -268,23 +271,23 @@ export function CheckoutModal({ items, onClose, onComplete }) {
     return () => { cancelled = true; };
   }, [address.pincode]);
 
-  // After typing phone, look up & prefill if known.
-  // If customer has a complete saved address, skip the address step entirely.
+  // After typing phone, look up & decide whether to skip address entry.
+  // The server returns ONLY masked hints — no actual name / address /
+  // email — so we can't prefill PII fields. Instead the user sees a
+  // "Welcome back" banner and can opt to use the saved address (the
+  // server resolves it at order time) or type a different one.
   const handlePhoneNext = async () => {
     setErr(''); setLoading(true);
     try {
       const lookup = await api.lookupCustomer(phone).catch(() => ({ known: false }));
       if (lookup.known) {
-        if (lookup.name) setName(lookup.name);
-        if (lookup.email) setEmail(lookup.email);
-        if (lookup.address) {
-          setAddress(lookup.address);
-          setSavedAddress(lookup.address);
-          if (isCompleteAddress(lookup.address) && lookup.name) {
-            // Repeat customer with complete profile → straight to payment
-            setStep(STEP.PAYMENT);
-            return;
-          }
+        setSavedHint({ nameHint: lookup.nameHint, pincodeHint: lookup.pincodeHint });
+        if (lookup.hasAddress) {
+          // Repeat customer with a complete saved address → straight to payment.
+          // Order placement will set useSavedAddress: true.
+          setUseSavedAddress(true);
+          setStep(STEP.PAYMENT);
+          return;
         }
       }
       setStep(STEP.ADDRESS);
@@ -309,11 +312,17 @@ export function CheckoutModal({ items, onClose, onComplete }) {
     setErr(''); setLoading(true);
     try {
       const payload = {
-        phone, name, email,
-        address,
+        phone, email,
         items: items.map(i => ({ bookId: i.id, qty: i.qty, isBundle: !!i.isBundle })),
         paymentMethod,
       };
+      // Either use saved address (server resolves) or supply name+address
+      if (useSavedAddress) {
+        payload.useSavedAddress = true;
+      } else {
+        payload.name = name;
+        payload.address = address;
+      }
       if (paymentMethod === 'cod') payload.otp = otp;
 
       const result = await api.checkout(payload);
@@ -396,31 +405,31 @@ export function CheckoutModal({ items, onClose, onComplete }) {
           {step === STEP.ADDRESS && (
             <>
               <h3 className="display" style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>
-                {savedAddress && !editingAddress ? 'Confirm your address' : 'Delivery address'}
+                {savedHint && !editingAddress ? 'Confirm your address' : 'Delivery address'}
               </h3>
               <p className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', margin: '0 0 16px' }}>
-                {name ? `Welcome back, ${name.split(' ')[0]}.` : `Tip: type your PIN code first — we'll fill in city and state.`}
+                {savedHint ? `Welcome back, ${savedHint.nameHint}.` : `Tip: type your PIN code first — we'll fill in city and state.`}
               </p>
 
-              {/* Recap card for returning customers — they can confirm or edit */}
-              {savedAddress && !editingAddress && (
+              {/* Recap for returning customers: only the masked hint is shown.
+                  Server resolves the full address at order time. */}
+              {savedHint?.pincodeHint && !editingAddress && (
                 <div style={{
                   background: 'var(--paper-2)', padding: '16px 18px', border: '1px solid var(--rule-soft)',
-                  marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14,
+                  marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14,
                 }}>
                   <div className="serif" style={{ fontSize: 14, lineHeight: 1.5 }}>
-                    <strong>{name}</strong><br/>
-                    {savedAddress.line1}{savedAddress.line2 ? `, ${savedAddress.line2}` : ''}<br/>
-                    {savedAddress.city}, {savedAddress.state} — {savedAddress.pincode}
+                    <strong>Use your saved address</strong><br/>
+                    <span style={{ color: 'var(--muted)' }}>PIN ending {savedHint.pincodeHint} · we'll fill in the rest</span>
                   </div>
-                  <button onClick={() => setEditingAddress(true)} className="sans"
+                  <button onClick={() => { setEditingAddress(true); setUseSavedAddress(false); }} className="sans"
                     style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)' }}>
-                    EDIT
+                    USE DIFFERENT
                   </button>
                 </div>
               )}
 
-              {(editingAddress || !savedAddress) && (
+              {(editingAddress || !savedHint?.pincodeHint) && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <Field label="Full name *" value={name} onChange={setName} span={2}
                     autoComplete="name" />

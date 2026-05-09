@@ -55,8 +55,19 @@ export async function issueOtp(phone, purpose) {
   return { ok: true, expiresAt, mock: sms.IS_MOCK_SMS };
 }
 
+// Constant-time string compare that returns false on length mismatch
+// instead of throwing (which crypto.timingSafeEqual does).
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Verify a submitted code. Marks consumed on success.
 // Returns true on match, false on mismatch/expired/exhausted.
+// Uses constant-time comparison to prevent timing-based code extraction.
 export function verifyOtp(phone, purpose, code) {
   const row = db.prepare(`
     SELECT id, code, attempts, expires_at, consumed
@@ -69,7 +80,7 @@ export function verifyOtp(phone, purpose, code) {
   if (row.expires_at < Date.now()) return false;
   if (row.attempts >= MAX_ATTEMPTS) return false;
 
-  if (row.code !== code) {
+  if (!safeEqual(row.code, String(code || ''))) {
     db.prepare('UPDATE otps SET attempts = attempts + 1 WHERE id = ?').run(row.id);
     return false;
   }
@@ -80,4 +91,9 @@ export function verifyOtp(phone, purpose, code) {
 // Cleanup helper — call from a daily job
 export function purgeExpiredOtps() {
   return db.prepare('DELETE FROM otps WHERE expires_at < ? OR consumed = 1').run(Date.now() - 86400_000).changes;
+}
+
+// Companion: drop expired admin sessions. Call from same daily job.
+export function purgeExpiredAdminSessions() {
+  return db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(Date.now()).changes;
 }

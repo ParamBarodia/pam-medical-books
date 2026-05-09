@@ -10,17 +10,40 @@ import * as notify from '../services/notify.js';
 const r = Router();
 
 // ─── Lookup customer by phone ──────────────────────────────────────────────
-// Used at checkout to prefill name/address for repeat buyers.
+// Used at checkout to know whether a returning customer can skip the
+// address step. Returns ONLY masked hints to prevent PII enumeration:
+// anyone iterating phone numbers should not be able to extract the
+// owner's name, email, or full address.
+//
+// The full saved address is never sent to the client. At checkout time the
+// client sends `useSavedAddress: true` and the SERVER fills in the address
+// from the customer record — the client never sees it directly.
+function maskName(name) {
+  if (!name) return null;
+  const first = String(name).trim().split(/\s+/)[0] || '';
+  if (first.length <= 2) return first[0] + '***';
+  return first[0] + '***' + first.slice(-1);
+}
+function maskPincode(pin) {
+  if (!pin) return null;
+  return String(pin).slice(0, 3) + '***';
+}
+
 r.get('/customer/lookup', (req, res) => {
   const phone = otp.normalizePhone(req.query.phone);
   if (!phone) return res.status(400).json({ error: 'invalid phone' });
-  const row = db.prepare('SELECT name, email, last_address_json FROM customers WHERE phone = ?').get(phone);
+  const row = db.prepare('SELECT name, last_address_json FROM customers WHERE phone = ?').get(phone);
   if (!row) return res.json({ known: false });
+  let pinHint = null;
+  try {
+    const addr = row.last_address_json ? JSON.parse(row.last_address_json) : null;
+    pinHint = addr?.pincode ? maskPincode(addr.pincode) : null;
+  } catch {}
   res.json({
     known: true,
-    name: row.name,
-    email: row.email || null,
-    address: row.last_address_json ? JSON.parse(row.last_address_json) : null,
+    nameHint: maskName(row.name),
+    pincodeHint: pinHint,
+    hasAddress: !!pinHint,
   });
 });
 

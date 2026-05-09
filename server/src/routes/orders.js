@@ -58,13 +58,29 @@ function validateAddress(a) {
 // ─── POST /orders/checkout ─────────────────────────────────────────────────
 r.post('/orders/checkout', async (req, res, next) => {
   try {
-    const { phone: rawPhone, name, email, address, items, paymentMethod = 'upi', otp: submittedOtp } = req.body || {};
+    const { phone: rawPhone, name: rawName, email, address: clientAddress,
+            items, paymentMethod = 'upi', otp: submittedOtp,
+            useSavedAddress } = req.body || {};
 
     const phone = otp.normalizePhone(rawPhone);
     if (!phone) return res.status(400).json({ error: 'invalid phone' });
-    if (!name || name.length < 2) return res.status(400).json({ error: 'name required' });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items required' });
 
+    // Address resolution: if useSavedAddress is true, server pulls from the
+    // customer record. This way the address is never sent to the client side
+    // (avoids PII enumeration attack via the lookup endpoint).
+    let address = clientAddress;
+    let name = rawName;
+    if (useSavedAddress) {
+      const saved = db.prepare('SELECT name, last_address_json FROM customers WHERE phone = ?').get(phone);
+      if (!saved?.last_address_json) {
+        return res.status(400).json({ error: 'no saved address on file for this number' });
+      }
+      try { address = JSON.parse(saved.last_address_json); } catch { return res.status(400).json({ error: 'saved address corrupt' }); }
+      name = name || saved.name;
+    }
+
+    if (!name || name.length < 2) return res.status(400).json({ error: 'name required' });
     const addrErr = validateAddress(address);
     if (addrErr) return res.status(400).json({ error: addrErr });
 

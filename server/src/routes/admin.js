@@ -17,11 +17,20 @@ import { fetchBookMetadata } from '../../../scripts/lib/metadata.js';
 const r = Router();
 
 // ─── Login: request OTP ───────────────────────────────────────────────────
+// Returns the same shape regardless of whether the phone is in the admin
+// allowlist. To also defeat *timing* probes (attacker measures response
+// latency to learn which phones are real admins), the non-admin path
+// sleeps for a fake delay sized to roughly match the SMS-send round-trip.
 r.post('/admin/login/request', async (req, res) => {
+  const start = Date.now();
   const phone = otpSvc.normalizePhone(req.body?.phone);
   if (!phone) return res.status(400).json({ error: 'invalid phone' });
   if (!isAdminPhone(phone)) {
-    // Don't tip off attackers about which phones are admin — same response either way
+    // Pretend to issue an OTP. Sleep long enough to mask the timing
+    // difference vs the real SMS-send path (~150-300ms typically).
+    const fakeDelay = 200 + Math.floor(Math.random() * 120);
+    const elapsed = Date.now() - start;
+    if (elapsed < fakeDelay) await new Promise((r) => setTimeout(r, fakeDelay - elapsed));
     return res.json({ ok: true, mock: false });
   }
   try {
