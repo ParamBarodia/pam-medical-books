@@ -372,3 +372,85 @@ html { scroll-behavior: smooth; }
 }
 .ms-arrow-link:hover .ms-arrow { transform: translateX(4px); }
 .ms-arrow-link:hover { color: #6e2117; }
+
+/* ─── Hero page-turn carousel ─────────────────────────────────────── */
+.ms-hero-page {
+  position: relative;
+  z-index: 2;
+  transform-origin: 0% 50%;     /* hinged on the left edge, like a book spine */
+  transform-style: preserve-3d;
+  will-change: transform, filter;
+}
+.ms-hero-page-flipping {
+  animation: ms-page-turn 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+}
+/* A subtle dark gradient sweeps across the page mid-flip, like the back-of-paper
+   shadow you'd see when turning a real page in a book. */
+.ms-hero-page-flipping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 30%, rgba(0,0,0,0) 70%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99;
+  animation: ms-page-shadow 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+}
+@keyframes ms-page-turn {
+  0% {
+    transform: rotateY(0) translateZ(0);
+    filter: brightness(1);
+  }
+  20% {
+    transform: rotateY(-25deg) translateZ(20px);
+    filter: brightness(0.95);
+  }
+  50% {
+    transform: rotateY(-95deg) translateZ(40px);
+    filter: brightness(0.7);
+  }
+  80% {
+    transform: rotateY(-160deg) translateZ(20px);
+    filter: brightness(0.85);
+  }
+  100% {
+    transform: rotateY(-180deg) translateZ(0);
+    filter: brightness(0.92);
+  }
+}
+@keyframes ms-page-shadow {
+  0%   { opacity: 0; }
+  25%  { opacity: 0.6; }
+  60%  { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+
+/* Navigation arrow — unobtrusive, appears on hover */
+.ms-hero-banner:hover .ms-hero-nav { opacity: 1; }
+.ms-hero-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.92);
+  color: var(--ink);
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 220ms ease, background 180ms ease, transform 180ms ease;
+}
+.ms-hero-nav:hover {
+  background: var(--paper);
+  transform: translateY(-50%) scale(1.06);
+}
+
+/* Reduce-motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .ms-hero-page-flipping {
+    animation: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+}

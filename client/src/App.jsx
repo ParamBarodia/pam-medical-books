@@ -107,7 +107,7 @@ function Storefront() {
           />
         ) : (
           <>
-            <Hero featuredBook={featured.data?.[1] || featured.data?.[0]} />
+            <Hero books={featured.data?.slice(0, 5) || []} onAdd={handleAdd} onOpen={setProductOpen} />
             <TrustStrip />
             <BookGrid
               eyebrow="New Arrivals · 2026" title="Fresh from the printers."
