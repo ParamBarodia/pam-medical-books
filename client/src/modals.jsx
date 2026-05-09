@@ -191,14 +191,37 @@ function Line({ label, value, positive }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// CheckoutModal — phone-first 4-step flow
-//   1. Phone (+ name if new) → autoload prior address if known
-//   2. Address
+// CheckoutModal — phone-first flow
+//   1. Phone (+ name + email)
+//        → if returning customer with complete address, jump to PAYMENT
+//        → otherwise continue to ADDRESS
+//   2. Address (with pincode → city/state autofill via India Post)
 //   3. Payment method
 //   4. (COD only) OTP verify  → place order
 // ────────────────────────────────────────────────────────────────────────────
 const STEP = { PHONE: 1, ADDRESS: 2, PAYMENT: 3, OTP: 4, DONE: 5 };
 const blankAddress = { line1: '', line2: '', city: '', state: '', pincode: '' };
+
+// India Post free pincode lookup. Returns { city, state } or null.
+const pincodeCache = new Map();
+async function lookupPincode(pin) {
+  if (!/^\d{6}$/.test(pin)) return null;
+  if (pincodeCache.has(pin)) return pincodeCache.get(pin);
+  try {
+    const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const office = data?.[0]?.PostOffice?.[0];
+    if (!office) return null;
+    const result = { city: office.District, state: office.State };
+    pincodeCache.set(pin, result);
+    return result;
+  } catch { return null; }
+}
+
+function isCompleteAddress(a) {
+  return !!(a?.line1 && a?.city && a?.state && /^\d{6}$/.test(a?.pincode || ''));
+}
 
 export function CheckoutModal({ items, onClose, onComplete }) {
   const [step, setStep] = useState(STEP.PHONE);
@@ -206,9 +229,12 @@ export function CheckoutModal({ items, onClose, onComplete }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState(blankAddress);
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [savedAddress, setSavedAddress] = useState(null);   // for "use saved address" recap
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [otpCode, setOtpCode] = useState('');
   const [otpExpiresAt, setOtpExpiresAt] = useState(null);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
   const [order, setOrder] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
@@ -221,17 +247,45 @@ export function CheckoutModal({ items, onClose, onComplete }) {
   }, [onClose, step]);
 
   const phoneValid = /^\d{10}$/.test(phone.replace(/\D/g, ''));
-  const addrValid  = name && address.line1 && address.city && address.state && /^\d{6}$/.test(address.pincode);
+  const addrValid  = name && isCompleteAddress(address);
 
-  // After typing phone, look up & prefill if known
+  // Pincode → city/state autofill. Fires when 6 digits entered.
+  useEffect(() => {
+    const pin = address.pincode;
+    if (!/^\d{6}$/.test(pin)) return;
+    let cancelled = false;
+    setPincodeLoading(true);
+    lookupPincode(pin).then((res) => {
+      if (cancelled || !res) { setPincodeLoading(false); return; }
+      setAddress((a) => ({
+        ...a,
+        // Only overwrite if the user hasn't already typed something
+        city: a.city && a.city !== res.city ? a.city : res.city,
+        state: a.state && a.state !== res.state ? a.state : res.state,
+      }));
+      setPincodeLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [address.pincode]);
+
+  // After typing phone, look up & prefill if known.
+  // If customer has a complete saved address, skip the address step entirely.
   const handlePhoneNext = async () => {
     setErr(''); setLoading(true);
     try {
       const lookup = await api.lookupCustomer(phone).catch(() => ({ known: false }));
       if (lookup.known) {
-        setName(lookup.name);
+        if (lookup.name) setName(lookup.name);
         if (lookup.email) setEmail(lookup.email);
-        if (lookup.address) setAddress(lookup.address);
+        if (lookup.address) {
+          setAddress(lookup.address);
+          setSavedAddress(lookup.address);
+          if (isCompleteAddress(lookup.address) && lookup.name) {
+            // Repeat customer with complete profile → straight to payment
+            setStep(STEP.PAYMENT);
+            return;
+          }
+        }
       }
       setStep(STEP.ADDRESS);
     } catch (e) { setErr(e.message || 'Lookup failed'); }
@@ -330,26 +384,69 @@ export function CheckoutModal({ items, onClose, onComplete }) {
               </p>
               <Field label="Phone (10 digits)" value={phone}
                 onChange={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
-                placeholder="98765 43210" />
-              <Field label="Email (optional, for invoice)" type="email" value={email} onChange={setEmail} />
+                placeholder="98765 43210"
+                autoComplete="tel-national"
+                inputMode="numeric" />
+              <Field label="Email (optional, for invoice)" type="email" value={email} onChange={setEmail}
+                autoComplete="email" />
               {err && <div className="serif" style={{ color: 'var(--accent)', fontSize: 13, marginTop: 10 }}>{err}</div>}
             </>
           )}
 
           {step === STEP.ADDRESS && (
             <>
-              <h3 className="display" style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>Delivery address</h3>
-              <p className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', margin: '0 0 20px' }}>
-                {name ? `Welcome back, ${name.split(' ')[0]}. Confirm or update your address.` : `Where should we send your books?`}
+              <h3 className="display" style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>
+                {savedAddress && !editingAddress ? 'Confirm your address' : 'Delivery address'}
+              </h3>
+              <p className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', margin: '0 0 16px' }}>
+                {name ? `Welcome back, ${name.split(' ')[0]}.` : `Tip: type your PIN code first — we'll fill in city and state.`}
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label="Full name *" value={name} onChange={setName} span={2} />
-                <Field label="Address line 1 *" value={address.line1} onChange={v => setAddress(a => ({ ...a, line1: v }))} span={2} />
-                <Field label="Address line 2" value={address.line2} onChange={v => setAddress(a => ({ ...a, line2: v }))} span={2} />
-                <Field label="City *" value={address.city} onChange={v => setAddress(a => ({ ...a, city: v }))} />
-                <Field label="State *" value={address.state} onChange={v => setAddress(a => ({ ...a, state: v }))} />
-                <Field label="PIN code *" value={address.pincode} onChange={v => setAddress(a => ({ ...a, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
-              </div>
+
+              {/* Recap card for returning customers — they can confirm or edit */}
+              {savedAddress && !editingAddress && (
+                <div style={{
+                  background: 'var(--paper-2)', padding: '16px 18px', border: '1px solid var(--rule-soft)',
+                  marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14,
+                }}>
+                  <div className="serif" style={{ fontSize: 14, lineHeight: 1.5 }}>
+                    <strong>{name}</strong><br/>
+                    {savedAddress.line1}{savedAddress.line2 ? `, ${savedAddress.line2}` : ''}<br/>
+                    {savedAddress.city}, {savedAddress.state} — {savedAddress.pincode}
+                  </div>
+                  <button onClick={() => setEditingAddress(true)} className="sans"
+                    style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)' }}>
+                    EDIT
+                  </button>
+                </div>
+              )}
+
+              {(editingAddress || !savedAddress) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <Field label="Full name *" value={name} onChange={setName} span={2}
+                    autoComplete="name" />
+                  <Field label="PIN code *" value={address.pincode}
+                    onChange={v => setAddress(a => ({ ...a, pincode: v.replace(/\D/g, '').slice(0, 6) }))}
+                    placeholder="380006"
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    suffix={pincodeLoading ? '…' : (address.pincode.length === 6 && address.city ? '✓' : '')}
+                    hint={address.pincode.length === 6 && address.city ? `${address.city}, ${address.state}` : 'We auto-fill city + state from this'}
+                    span={2} />
+                  <Field label="Address line 1 *" value={address.line1}
+                    onChange={v => setAddress(a => ({ ...a, line1: v }))}
+                    placeholder="House / flat no, building, street"
+                    autoComplete="address-line1" span={2} />
+                  <Field label="Landmark / area (optional)" value={address.line2}
+                    onChange={v => setAddress(a => ({ ...a, line2: v }))}
+                    autoComplete="address-line2" span={2} />
+                  <Field label="City *" value={address.city}
+                    onChange={v => setAddress(a => ({ ...a, city: v }))}
+                    autoComplete="address-level2" />
+                  <Field label="State *" value={address.state}
+                    onChange={v => setAddress(a => ({ ...a, state: v }))}
+                    autoComplete="address-level1" />
+                </div>
+              )}
             </>
           )}
 
@@ -386,7 +483,9 @@ export function CheckoutModal({ items, onClose, onComplete }) {
               </p>
               <Field label="6-digit code" value={otpCode}
                 onChange={v => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456" />
+                placeholder="123456"
+                autoComplete="one-time-code"
+                inputMode="numeric" />
               <button onClick={sendOtp} className="sans" style={{
                 marginTop: 8, fontSize: 11, color: 'var(--accent)', fontWeight: 600,
                 letterSpacing: '0.08em' }}>RESEND CODE</button>
@@ -460,14 +559,24 @@ export function CheckoutModal({ items, onClose, onComplete }) {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', span = 1, placeholder }) {
+function Field({ label, value, onChange, type = 'text', span = 1, placeholder,
+                 autoComplete, inputMode, hint, suffix }) {
   return (
     <label style={{ gridColumn: `span ${span}`, display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
       <span className="sans" style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.04em' }}>{label}</span>
-      <input type={type} value={value} placeholder={placeholder}
-        onChange={e => onChange(e.target.value)}
-        style={{ padding: '12px 14px', fontSize: 14, fontFamily: 'var(--serif)',
-          background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)', outline: 'none' }} />
+      <div style={{ position: 'relative' }}>
+        <input type={type} value={value} placeholder={placeholder}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          onChange={e => onChange(e.target.value)}
+          style={{ width: '100%', padding: '12px 14px', fontSize: 14, fontFamily: 'var(--serif)',
+            background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)', outline: 'none' }} />
+        {suffix && (
+          <span className="sans" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>{suffix}</span>
+        )}
+      </div>
+      {hint && <span className="serif" style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>{hint}</span>}
     </label>
   );
 }

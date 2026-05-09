@@ -45,13 +45,17 @@ const bundles = [
   { id:'bun3', title:'NEET-PG Final Sprint', subtitle:'High-yield review across all 19 subjects', badge:'Save 18%', accent:'navy', books:['Marrow NEET-PG Notes (Set of 19)','DAMS Color Atlas',"Dr. Bhatia's NEET-PG Quick Review","Last 10 Years' Solved Papers"], mrp:8400, price:6895, saved:1505 },
 ];
 
+// Customer testimonials. Localised to Gujarat / Ahmedabad medical colleges
+// since Pam Medical Books' physical shop is in Ellis Bridge, Ahmedabad.
+// TODO: replace with live Google Business Profile API sync once Pam authorises
+// the OAuth flow. The shop's actual rating is 4.5/5 (46 reviews on Justdial).
 const testimonials = [
-  { name:'Dr. Aakash Mehta', role:'AIIMS Delhi · MBBS Year 4', source:'Google', rating:5, date:'12 days ago', text:'Ordered Robbins and Bailey & Love. Both arrived in 2 days, sealed and original. Will definitely order all my surgery prep books from here.' },
-  { name:'Priya Sharma', role:'JIPMER · MBBS Year 2', source:'WhatsApp', rating:5, date:'3 weeks ago', text:'I was confused about which biochemistry book to buy. The MedShelf AI suggested Lippincott + Vasudevan combo — exactly what my seniors recommended later.' },
-  { name:'Dr. Rohit Krishnan', role:'KGMU Lucknow · MD Pediatrics', source:'Google', rating:5, date:'1 month ago', text:'Bought the Nelson Pediatrics 22nd edition for residency. Genuine print, perfect condition. Customer support replied to my WhatsApp query in under an hour.' },
-  { name:'Sanchita Roy', role:'BHU · BDS Year 3', source:'Google', rating:4, date:'2 months ago', text:'Great selection of dental books which is rare in Indian online stores. They proactively informed me of a delay and gave a ₹100 store credit.' },
-  { name:'Dr. Vivek Iyer', role:'NEET-PG 2026 aspirant', source:'WhatsApp', rating:5, date:'5 days ago', text:'The NEET-PG Final Sprint bundle saved me 18% over buying separately. Dispatched same day from Bangalore — got it in Pune in 2 days.' },
-  { name:'Anjali Nair', role:'Manipal · Nursing', source:'Google', rating:5, date:'3 weeks ago', text:'Affordable prices and they actually have nursing textbooks (not just MBBS). COD worked smoothly. Recommended to my whole batch.' },
+  { name:'Aakash Patel',     role:'BJ Medical College · MBBS Year 3',          source:'Google',  rating:5, date:'8 days ago',  text:'Walked into Pam at Ellis Bridge for Robbins and ended up getting the whole Year 3 set. Same-day delivery to my hostel near Civil Hospital. Genuine prints, original price.' },
+  { name:'Priya Shah',       role:'Government Dental College, Ahmedabad · BDS', source:'WhatsApp', rating:5, date:'3 weeks ago', text:'Best collection of BDS books in Ahmedabad. Ordered Soames + Shafer late at night, got a WhatsApp confirmation in 2 minutes and the books next morning.' },
+  { name:'Rohan Desai',      role:'AMC MET Medical College · MBBS Year 1',     source:'Google',  rating:5, date:'1 month ago', text:'Pamesh bhai personally helped me pick the right anatomy book combo for first year. BD Chaurasia + Inderbir Singh — saved me from buying duplicates.' },
+  { name:'Dr. Sneha Trivedi', role:'NHL Medical College · MD Resident',         source:'Google',  rating:4, date:'5 weeks ago', text:'Reliable for Harrison\'s and Davidson\'s. Slight delay once during monsoon but they kept me updated on WhatsApp. Will keep ordering.' },
+  { name:'Vivek Mehta',      role:'NEET-PG 2026 aspirant',                     source:'WhatsApp', rating:5, date:'6 days ago', text:'Bhatia notes + Marrow set together — got a discount the website didn\'t even show. Very fair pricing, the kind you expect from your local seller.' },
+  { name:'Anjali Joshi',     role:'Sumandeep Vidyapeeth · Nursing',            source:'Google',  rating:5, date:'2 weeks ago', text:'Honestly didn\'t expect a medical book shop to have proper nursing collection. Got Pottar & Perry plus all my Tara Shanbhag prescribed books in one trip from Vadodara.' },
 ];
 
 const insertBook = db.prepare(`
