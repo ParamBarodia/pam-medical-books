@@ -1,32 +1,23 @@
 // Pam Medical Books API client.
-// In dev, requests go to /api (Vite proxies to http://localhost:4000).
-// In prod, set VITE_API_BASE_URL to the deployed API origin (e.g. https://api.example.com).
+// Phone-only model: no JWT, no Bearer tokens.
+// Admin uses an httpOnly cookie (set server-side); we just pass credentials:'include'.
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-const TOKEN_KEY = 'ms_token';
 
-// Resolve a relative asset path (e.g. /covers/b2.jpg) against the API origin.
-// In dev API_BASE is empty so the Vite proxy handles it; in prod, prefix the API host.
 export function assetUrl(path) {
   if (!path) return path;
-  if (/^https?:/.test(path)) return path;          // already absolute
+  if (/^https?:/.test(path)) return path;
   if (path.startsWith('/')) return `${API_BASE}${path}`;
   return path;
 }
 
-export function getToken()      { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
-export function setToken(t)     { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
-
-async function request(path, { method = 'GET', body, auth = false } = {}) {
+async function request(path, { method = 'GET', body, includeCookies = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth) {
-    const tok = getToken();
-    if (tok) headers.Authorization = `Bearer ${tok}`;
-  }
   const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: includeCookies ? 'include' : 'same-origin',
   });
   let data = null;
   try { data = await res.json(); } catch {}
@@ -34,39 +25,51 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
   return data;
 }
 
-// ─── Catalog (public) ──────────────────────────────────────────────────────
 export const api = {
-  health:      () => request('/health'),
-  books:       (params = {}) => {
+  health:        () => request('/health'),
+
+  // ─── Catalog (public) ─────────────────────────────────────────────────
+  books:        (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/books${qs ? '?' + qs : ''}`);
   },
-  book:        (id) => request(`/books/${id}`),
-  bundles:     () => request('/bundles'),
+  book:         (id) => request(`/books/${id}`),
+  bundles:      () => request('/bundles'),
   testimonials: () => request('/testimonials'),
-  notify:      (bookId, email) => request('/notify', { method: 'POST', body: { bookId, email } }),
 
-  // ─── Auth ────────────────────────────────────────────────────────────────
-  signup: (data) => request('/auth/signup', { method: 'POST', body: data }),
-  login:  (data) => request('/auth/login',  { method: 'POST', body: data }),
-  me:     ()    => request('/auth/me', { auth: true }),
+  // ─── Phone-only customer flow ────────────────────────────────────────
+  lookupCustomer:    (phone) => request(`/customer/lookup?phone=${encodeURIComponent(phone)}`),
+  requestOtp:        (phone, purpose = 'cod_checkout') => request('/otp/request', { method: 'POST', body: { phone, purpose } }),
+  notifyWhenBack:    (bookId, phone) => request('/notify-when-back', { method: 'POST', body: { bookId, phone } }),
 
-  // ─── Cart ────────────────────────────────────────────────────────────────
-  cart:        () => request('/cart', { auth: true }),
-  cartAdd:     (bookId, qty = 1, isBundle = false) => request('/cart', { method: 'POST', body: { bookId, qty, isBundle }, auth: true }),
-  cartUpdate:  (bookId, delta, isBundle = false) => request('/cart', { method: 'PATCH', body: { bookId, delta, isBundle }, auth: true }),
-  cartRemove:  (bookId) => request(`/cart/${bookId}`, { method: 'DELETE', auth: true }),
-  cartClear:   () => request('/cart', { method: 'DELETE', auth: true }),
+  // ─── Orders ───────────────────────────────────────────────────────────
+  checkout:          (payload) => request('/orders/checkout', { method: 'POST', body: payload }),
+  verifyPayment:     (orderId, payload) => request(`/orders/${orderId}/verify`, { method: 'POST', body: payload }),
+  ordersByPhone:     (phone) => request(`/orders/by-phone?phone=${encodeURIComponent(phone)}`),
+  orderDetail:       (orderId, phone) => request(`/orders/lookup/${orderId}?phone=${encodeURIComponent(phone)}`),
+  requestReturn:     (orderId, phone, reason) => request(`/orders/${orderId}/request-return`, { method: 'POST', body: { phone, reason } }),
+  requestCancellation: (orderId, phone, reason) => request(`/orders/${orderId}/request-cancellation`, { method: 'POST', body: { phone, reason } }),
 
-  // ─── Wishlist ────────────────────────────────────────────────────────────
-  wishlist:         () => request('/wishlist', { auth: true }),
-  wishlistDetailed: () => request('/wishlist/detailed', { auth: true }),
-  wishlistAdd:    (bookId) => request('/wishlist', { method: 'POST', body: { bookId }, auth: true }),
-  wishlistRemove: (bookId) => request(`/wishlist/${bookId}`, { method: 'DELETE', auth: true }),
-
-  // ─── Orders ──────────────────────────────────────────────────────────────
-  checkout: (address, paymentMethod) => request('/orders/checkout', { method: 'POST', body: { address, paymentMethod }, auth: true }),
-  verifyPayment: (orderId, payload) => request(`/orders/${orderId}/verify`, { method: 'POST', body: payload, auth: true }),
-  orders:   () => request('/orders', { auth: true }),
-  order:    (id) => request(`/orders/${id}`, { auth: true }),
+  // ─── Admin (cookie-authenticated) ────────────────────────────────────
+  adminRequestLogin: (phone) => request('/admin/login/request', { method: 'POST', body: { phone }, includeCookies: true }),
+  adminVerifyLogin:  (phone, code) => request('/admin/login/verify', { method: 'POST', body: { phone, code }, includeCookies: true }),
+  adminLogout:       () => request('/admin/logout', { method: 'POST', includeCookies: true }),
+  adminMe:           () => request('/admin/me', { includeCookies: true }),
+  adminOrders:       (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/admin/orders${qs ? '?' + qs : ''}`, { includeCookies: true });
+  },
+  adminOrder:        (id) => request(`/admin/orders/${id}`, { includeCookies: true }),
+  adminUpdateOrder:  (id, status) => request(`/admin/orders/${id}`, { method: 'PATCH', body: { status }, includeCookies: true }),
+  adminBooks:        (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/admin/books${qs ? '?' + qs : ''}`, { includeCookies: true });
+  },
+  adminUpdateStock:  (id, body) => request(`/admin/books/${id}/stock`, { method: 'PATCH', body, includeCookies: true }),
+  adminIsbnPreview:  (isbn) => request('/admin/catalog/isbn-preview', { method: 'POST', body: { isbn }, includeCookies: true }),
+  adminSaveBook:     (book) => request('/admin/catalog/book', { method: 'POST', body: book, includeCookies: true }),
+  adminDeleteBook:   (id) => request(`/admin/catalog/book/${id}`, { method: 'DELETE', includeCookies: true }),
+  adminRequests:     () => request('/admin/requests', { includeCookies: true }),
+  adminDecideReturn: (id, decision, note) => request(`/admin/requests/return/${id}`, { method: 'PATCH', body: { decision, note }, includeCookies: true }),
+  adminDecideCancel: (id, decision, note) => request(`/admin/requests/cancellation/${id}`, { method: 'PATCH', body: { decision, note }, includeCookies: true }),
 };

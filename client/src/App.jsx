@@ -1,24 +1,32 @@
-// MedShelf — full-stack frontend.
-// All product/cart/auth/order data flows through the Express API at /api (Vite proxies to :4000).
-import React, { useState } from 'react';
+// Pam Medical Books — root.
+// Three top-level routes (path-based):
+//   /         → main store
+//   /track    → public order tracking page (phone lookup)
+//   /admin/*  → admin dashboard
+import React, { useState, useEffect } from 'react';
 import { api } from './api.js';
 import { SANITY_ENABLED, fetchBooksByShelf, searchBooks, fetchBundles, fetchTestimonials } from './sanity.js';
-import { useAuth, useCart, useWishlist, useFetch } from './hooks.js';
+import { useCart, useFetch } from './hooks.js';
 import {
   Ticker, UtilityStrip, Navbar, Hero, TrustStrip, SectionHead, CourseTiles,
   BookCard, BookGrid, Bundles, Forthcoming, SecondHand, Testimonials,
   GenuineBanner, Distributors, Footer, BookCover, Icon,
   SectionOrnament,
 } from './components.jsx';
-import { ProductModal, AuthModal, CartDrawer, CheckoutModal, WishlistDrawer, AccountDrawer } from './modals.jsx';
+import { ProductModal, CartDrawer, CheckoutModal } from './modals.jsx';
+import TrackPage from './track.jsx';
+import AdminApp from './admin/AdminApp.jsx';
 
 export default function App() {
-  // ── Server-backed state ──────────────────────────────────────────────────
-  const auth = useAuth();
-  const cart = useCart(auth.user);
-  const wish = useWishlist(auth.user);
+  const path = window.location.pathname;
+  if (path.startsWith('/track')) return <TrackPage />;
+  if (path.startsWith('/admin')) return <AdminApp />;
+  return <Storefront />;
+}
 
-  // Dual-mode: Sanity if VITE_SANITY_PROJECT_ID is set, else local Express API
+function Storefront() {
+  const cart = useCart();
+
   const fetchShelf = (shelf) => SANITY_ENABLED ? fetchBooksByShelf(shelf) : api.books({ shelf });
   const featured     = useFetch(() => fetchShelf('featured'), []);
   const newArrivals  = useFetch(() => fetchShelf('new'), []);
@@ -27,25 +35,19 @@ export default function App() {
   const bundles      = useFetch(() => SANITY_ENABLED ? fetchBundles() : api.bundles(), []);
   const testimonials = useFetch(() => SANITY_ENABLED ? fetchTestimonials() : api.testimonials(), []);
 
-  // ── Local UI state ───────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [productOpen, setProductOpen] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [wishlistOpen, setWishlistOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Live-search debounce
   React.useEffect(() => {
     const id = setTimeout(() => setSubmittedQuery(query), 200);
     return () => clearTimeout(id);
   }, [query]);
 
-  // Fetch search results when query/category changes
   const isFiltering = submittedQuery.trim().length > 0 || activeCategory !== 'All';
   const search = useFetch(
     () => {
@@ -63,54 +65,33 @@ export default function App() {
   };
 
   const handleAdd = (book) => {
-    if (!auth.user) {
-      // Allow guest adds via localStorage; surface gentle hint
-      cart.add(book);
-      showToast(`Added "${book.title.slice(0, 32)}…". Sign in to save your cart.`);
-      return;
-    }
     cart.add(book);
     showToast(`Added "${book.title.slice(0, 32)}…"`);
   };
-
   const handleAddBundle = (bundle) => {
     cart.add({ ...bundle, isBundle: true });
     showToast(`Bundle added · You saved ₹${bundle.saved.toLocaleString('en-IN')}`, 'teal');
   };
-
-  const handleToggleWish = (bookId) => {
-    if (!auth.user) { setAuthOpen(true); return; }
-    wish.toggle(bookId);
-  };
-
   const handleCheckout = () => {
-    if (!auth.user) { setCartOpen(false); setAuthOpen(true); return; }
     if (!cart.items.length) return;
     setCartOpen(false); setCheckoutOpen(true);
   };
-
   const handleOrderComplete = (orderId) => {
     cart.clear();
     setCheckoutOpen(false);
     showToast(`Order ${orderId} placed!`, 'teal');
   };
-
   const clearFilters = () => { setQuery(''); setSubmittedQuery(''); setActiveCategory('All'); };
 
   return (
     <>
-      <UtilityStrip user={auth.user} onSignIn={() => setAuthOpen(true)} onLogout={auth.logout} />
+      <UtilityStrip />
       <Ticker />
       <Navbar
-        user={auth.user}
         cartCount={cart.items.length}
-        wishCount={wish.ids.size}
         query={query} setQuery={setQuery}
         activeCategory={activeCategory} setActiveCategory={setActiveCategory}
         onOpenCart={() => setCartOpen(true)}
-        onSignIn={() => setAuthOpen(true)}
-        onOpenWishlist={() => setWishlistOpen(true)}
-        onOpenAccount={() => setAccountOpen(true)}
       />
 
       <main id="main">
@@ -122,9 +103,7 @@ export default function App() {
             category={activeCategory}
             onClear={clearFilters}
             onAdd={handleAdd}
-            onWish={handleToggleWish}
             onOpen={setProductOpen}
-            wished={wish}
           />
         ) : (
           <>
@@ -135,7 +114,7 @@ export default function App() {
               marginNote="Chapter I — what's just landed at the warehouse"
               books={newArrivals.data} loading={newArrivals.loading}
               density={5}
-              onAdd={handleAdd} onWish={handleToggleWish} onOpen={setProductOpen} wished={wish}
+              onAdd={handleAdd} onOpen={setProductOpen}
             />
             <SectionOrnament />
             <CourseTiles />
@@ -145,12 +124,17 @@ export default function App() {
               marginNote="Chapter II — the books they all need by November"
               books={featured.data} loading={featured.loading}
               density={5}
-              onAdd={handleAdd} onWish={handleToggleWish} onOpen={setProductOpen} wished={wish}
+              onAdd={handleAdd} onOpen={setProductOpen}
             />
             <SectionOrnament />
             <Bundles bundles={bundles.data} onAdd={handleAddBundle} />
             <Forthcoming books={forthcoming.data} onOpen={setProductOpen}
-              onNotify={(b) => { api.notify(b.id, auth.user?.email).catch(() => {}); showToast(`We'll email you when "${b.title.slice(0, 26)}…" arrives`, 'teal'); }} />
+              onNotify={(b) => {
+                const phone = window.prompt('Phone number to notify when this book arrives?');
+                if (!phone) return;
+                api.notifyWhenBack(b.id, phone).catch(() => {});
+                showToast(`We'll text you when "${b.title.slice(0, 26)}…" arrives`, 'teal');
+              }} />
             <SectionOrnament />
             <SecondHand books={secondhand.data} onAdd={handleAdd} onOpen={setProductOpen} />
             <GenuineBanner />
@@ -165,10 +149,8 @@ export default function App() {
       {productOpen && (
         <ProductModal
           book={productOpen}
-          wished={wish.has(productOpen.id)}
           onClose={() => setProductOpen(null)}
           onAdd={() => handleAdd(productOpen)}
-          onWish={() => handleToggleWish(productOpen.id)}
         />
       )}
       {cartOpen && (
@@ -179,34 +161,11 @@ export default function App() {
           onCheckout={handleCheckout}
         />
       )}
-      {authOpen && (
-        <AuthModal
-          onClose={() => setAuthOpen(false)}
-          onSignedIn={() => setAuthOpen(false)}
-          login={auth.login} signup={auth.signup}
-        />
-      )}
       {checkoutOpen && (
         <CheckoutModal
           items={cart.items}
-          user={auth.user}
           onClose={() => setCheckoutOpen(false)}
           onComplete={handleOrderComplete}
-        />
-      )}
-      {wishlistOpen && auth.user && (
-        <WishlistDrawer
-          onClose={() => setWishlistOpen(false)}
-          onAdd={handleAdd}
-          onWishToggle={(id) => wish.toggle(id)}
-          onOpenBook={(book) => { setWishlistOpen(false); setProductOpen(book); }}
-        />
-      )}
-      {accountOpen && auth.user && (
-        <AccountDrawer
-          user={auth.user}
-          onClose={() => setAccountOpen(false)}
-          onLogout={auth.logout}
         />
       )}
       {toast && <Toast key={toast.id} text={toast.text} accent={toast.accent} />}
@@ -214,8 +173,7 @@ export default function App() {
   );
 }
 
-// ─── Search results view (filter sidebar elided for brevity in this baseline) ─
-function SearchResults({ books, loading, query, category, onClear, onAdd, onWish, onOpen, wished }) {
+function SearchResults({ books, loading, query, category, onClear, onAdd, onOpen }) {
   return (
     <section style={{ padding: '40px 32px 80px' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
@@ -236,8 +194,7 @@ function SearchResults({ books, loading, query, category, onClear, onAdd, onWish
         <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
           {books.map(b => (
             <BookCard key={b.id} book={b}
-              onAdd={() => onAdd(b)} onWish={() => onWish(b.id)} onOpen={() => onOpen(b)}
-              wished={wished.has(b.id)} />
+              onAdd={() => onAdd(b)} onOpen={() => onOpen(b)} />
           ))}
         </div>
       </div>

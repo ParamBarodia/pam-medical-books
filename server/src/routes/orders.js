@@ -1,89 +1,132 @@
-// Orders + checkout. Wires Razorpay → Sanity (stock) → Shiprocket → Email.
+// Orders + checkout — phone-only flow.
 //
-// Flow (happy path):
-//   POST /orders/checkout      — creates order in DB, calls Razorpay.orders.create, returns IDs
-//   [client opens Razorpay checkout JS modal, customer pays, modal calls back]
-//   POST /orders/:id/verify    — verifies signature, marks paid, fires post-payment chain
-//   POST /webhooks/razorpay    — Razorpay's async confirmation (idempotent)
-//   POST /webhooks/shiprocket  — Shiprocket fires this on shipped/delivered
+// Customer sends: phone, name, address, items[], paymentMethod, otp? (cod only).
+// Server: validates, server-prices the items (never trust client), creates the
+// DB order, calls Razorpay (skip for COD), returns IDs for the client to open
+// checkout JS. After payment, /verify or the webhook flips status to paid.
 
 import { Router } from 'express';
 import db from '../db/index.js';
-import { requireAuth } from '../auth.js';
 import * as razorpay from '../services/razorpay.js';
 import * as shiprocket from '../services/shiprocket.js';
 import * as sanity from '../services/sanity.js';
-import * as email from '../services/email.js';
+import * as otp from '../services/otp.js';
+import * as notify from '../services/notify.js';
 
 const r = Router();
 
 function newOrderId() {
-  return 'MS' + Date.now().toString(36).toUpperCase();
+  return 'PMB' + Date.now().toString(36).toUpperCase();
 }
 
-function calcTotals(items) {
-  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const saved    = items.reduce((s, i) => s + (i.mrp - i.price) * i.qty, 0);
+// Look up each item from the DB so prices are authoritative server-side.
+function priceItems(items) {
+  const priced = [];
+  for (const it of items) {
+    if (!it?.bookId) throw new Error('each item needs bookId');
+    const qty = Number(it.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 50) throw new Error(`bad qty for ${it.bookId}`);
+    if (it.isBundle) {
+      const b = db.prepare('SELECT id, title, price, mrp FROM bundles WHERE id = ?').get(it.bookId);
+      if (!b) throw new Error(`bundle ${it.bookId} not found`);
+      priced.push({ book_id: null, bundle_id: b.id, title: b.title, qty, unit_price: b.price, unit_mrp: b.mrp });
+    } else {
+      const b = db.prepare('SELECT id, title, price, mrp, stock FROM books WHERE id = ?').get(it.bookId);
+      if (!b) throw new Error(`book ${it.bookId} not found`);
+      if (b.stock < qty) throw new Error(`only ${b.stock} of "${b.title.slice(0, 40)}" in stock`);
+      priced.push({ book_id: b.id, bundle_id: null, title: b.title, qty, unit_price: b.price, unit_mrp: b.mrp });
+    }
+  }
+  return priced;
+}
+
+function calcTotals(priced) {
+  const subtotal = priced.reduce((s, i) => s + i.unit_price * i.qty, 0);
+  const saved    = priced.reduce((s, i) => s + (i.unit_mrp - i.unit_price) * i.qty, 0);
   const tier     = subtotal >= 10000 ? 200 : subtotal >= 5000 ? 100 : 0;
   const shipping = subtotal >= 999 ? 0 : 49;
   const total    = subtotal - tier + shipping;
   return { subtotal, saved, tier, shipping, total };
 }
 
-// Hydrate cart for the authenticated user
-function hydrateCart(userId) {
-  return db.prepare(`
-    SELECT ci.book_id, ci.qty, ci.is_bundle,
-           IFNULL(b.title, bn.title) AS title,
-           IFNULL(b.price, bn.price) AS price,
-           IFNULL(b.mrp,   bn.mrp)   AS mrp
-    FROM cart_items ci
-    LEFT JOIN books   b  ON ci.is_bundle = 0 AND ci.book_id = b.id
-    LEFT JOIN bundles bn ON ci.is_bundle = 1 AND ci.book_id = bn.id
-    WHERE ci.user_id = ?
-  `).all(userId);
+function validateAddress(a) {
+  if (!a?.line1 || !a.city || !a.state) return 'incomplete address (line1, city, state required)';
+  if (!/^\d{6}$/.test(a.pincode || '')) return 'invalid pincode (6 digits)';
+  return null;
 }
 
 // ─── POST /orders/checkout ─────────────────────────────────────────────────
-r.post('/orders/checkout', requireAuth, async (req, res, next) => {
+r.post('/orders/checkout', async (req, res, next) => {
   try {
-    const { address, paymentMethod = 'upi' } = req.body || {};
-    if (!address?.name || !address?.phone || !address?.line1 || !address?.city || !address?.pincode) {
-      return res.status(400).json({ error: 'address incomplete' });
+    const { phone: rawPhone, name, email, address, items, paymentMethod = 'upi', otp: submittedOtp } = req.body || {};
+
+    const phone = otp.normalizePhone(rawPhone);
+    if (!phone) return res.status(400).json({ error: 'invalid phone' });
+    if (!name || name.length < 2) return res.status(400).json({ error: 'name required' });
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items required' });
+
+    const addrErr = validateAddress(address);
+    if (addrErr) return res.status(400).json({ error: addrErr });
+
+    // COD orders MUST present a verified OTP
+    if (paymentMethod === 'cod') {
+      if (!submittedOtp) return res.status(400).json({ error: 'OTP required for COD orders' });
+      if (!otp.verifyOtp(phone, 'cod_checkout', String(submittedOtp))) {
+        return res.status(401).json({ error: 'invalid or expired OTP' });
+      }
     }
 
-    const cart = hydrateCart(req.user.uid);
-    if (!cart.length) return res.status(400).json({ error: 'cart empty' });
+    let priced;
+    try { priced = priceItems(items); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
 
-    const totals = calcTotals(cart);
+    const totals = calcTotals(priced);
+    if (paymentMethod === 'cod') totals.total += 49;     // COD handling fee
+
     const orderId = newOrderId();
 
-    // Create order in our DB first (status=placed)
+    // Persist customer for prefill on next visit
     const tx = db.transaction(() => {
       db.prepare(`
-        INSERT INTO orders
-          (id, user_id, status, subtotal, saved, tier_discount, shipping, total,
-           payment_method, address_json)
+        INSERT INTO customers (phone, name, email, last_address_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(phone) DO UPDATE SET
+          name = excluded.name,
+          email = COALESCE(excluded.email, customers.email),
+          last_address_json = excluded.last_address_json,
+          updated_at = strftime('%s','now') * 1000
+      `).run(phone, name, email || null, JSON.stringify(address));
+
+      db.prepare(`
+        INSERT INTO orders (id, customer_phone, status, subtotal, saved, tier_discount,
+                            shipping, total, payment_method, address_json)
         VALUES (?, ?, 'placed', ?, ?, ?, ?, ?, ?, ?)
-      `).run(orderId, req.user.uid, totals.subtotal, totals.saved, totals.tier,
+      `).run(orderId, phone, totals.subtotal, totals.saved, totals.tier,
              totals.shipping, totals.total, paymentMethod, JSON.stringify(address));
 
       const ins = db.prepare(`
         INSERT INTO order_items (order_id, book_id, bundle_id, title, qty, unit_price, unit_mrp)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
-      for (const it of cart) {
-        ins.run(orderId, it.is_bundle ? null : it.book_id, it.is_bundle ? it.book_id : null,
-                it.title, it.qty, it.price, it.mrp);
-      }
+      for (const p of priced) ins.run(orderId, p.book_id, p.bundle_id, p.title, p.qty, p.unit_price, p.unit_mrp);
     });
     tx();
 
-    // Call Razorpay (mocked or real depending on env)
+    // COD: no Razorpay order needed; SMS the customer + return immediately.
+    if (paymentMethod === 'cod') {
+      // Decrement stock now (real cash collected on delivery; refund on cancel)
+      decrementLocalStock(orderId);
+      kickoffPostOrderSideEffects(orderId).catch((e) => console.error('[post-order]', e));
+      await notify.notify(phone, 'order_placed', { orderId, total: totals.total })
+                  .catch((e) => console.error('[notify]', e));
+      return res.status(201).json({ orderId, paymentMethod: 'cod', amount: totals.total, totals, status: 'placed' });
+    }
+
+    // Online payment: create Razorpay order
     const rzpOrder = await razorpay.createOrder({
       amount: totals.total,
       receipt: orderId,
-      notes: { user_id: String(req.user.uid), order_id: orderId },
+      notes: { phone, order_id: orderId },
     });
     db.prepare('UPDATE orders SET razorpay_order_id = ? WHERE id = ?').run(rzpOrder.id, orderId);
 
@@ -95,25 +138,25 @@ r.post('/orders/checkout', requireAuth, async (req, res, next) => {
       currency: 'INR',
       totals,
       mockMode: razorpay.IS_MOCK_RZP,
+      paymentMethod,
     });
   } catch (err) { next(err); }
 });
 
 // ─── POST /orders/:id/verify ──────────────────────────────────────────────
-// Called by the frontend after Razorpay's checkout JS reports success.
-// Verifies the signature, marks paid, fires the post-payment chain.
-r.post('/orders/:id/verify', requireAuth, async (req, res, next) => {
+r.post('/orders/:id/verify', async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
-    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.uid);
+    const { phone: rawPhone, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
+    const phone = otp.normalizePhone(rawPhone);
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+
+    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND customer_phone = ?').get(req.params.id, phone);
     if (!order) return res.status(404).json({ error: 'order not found' });
 
-    // COD orders complete on delivery, not via this endpoint.
     if (order.payment_method === 'cod') {
       return res.status(400).json({ error: 'COD orders are not verified online' });
     }
 
-    // Live mode: signature is mandatory and must verify against the stored order id.
     if (!razorpay.IS_MOCK_RZP) {
       if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
         return res.status(400).json({ error: 'razorpay_order_id, razorpay_payment_id, razorpay_signature required' });
@@ -131,75 +174,55 @@ r.post('/orders/:id/verify', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Mark order paid → trigger the post-payment chain. Idempotent.
-async function markPaidAndFulfill(order, paymentId) {
-  // 1. Update DB status
-  db.prepare('UPDATE orders SET status = ?, razorpay_payment_id = ?, updated_at = ? WHERE id = ? AND status = \'placed\'')
-    .run('paid', paymentId, Date.now(), order.id);
-
-  // 2. Decrement stock in Sanity for each book item
-  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
-  await Promise.all(items
-    .filter((i) => i.book_id)
-    .map((i) => sanity.decrementStock(i.book_id, i.qty).catch((err) => {
-      console.error(`[stock] failed to decrement ${i.book_id}:`, err.message);
-    })));
-
-  // 3. Create Shiprocket order
-  try {
-    const address = typeof order.address_json === 'string' ? JSON.parse(order.address_json) : order.address_json;
-    const ship = await shiprocket.createShiprocketOrder({ order, items, address });
-    db.prepare(`UPDATE orders
-                SET shiprocket_order_id = ?, shiprocket_shipment_id = ?, tracking_url = ?
-                WHERE id = ?`)
-      .run(ship.order_id, ship.shipment_id, ship.tracking_url, order.id);
-
-    // 4. Email customer + admin
-    if (address.email) {
-      await email.sendOrderConfirmation({ order, items, customerEmail: address.email, customerName: address.name }).catch(console.error);
-    }
-    await email.sendAdminNewOrderAlert({ order, customerName: address.name }).catch(console.error);
-  } catch (err) {
-    console.error('[shiprocket] order create failed:', err.message);
-    // Don't fail the customer's checkout — admin will reconcile from /admin/orders
-  }
-
-  // 5. Credit referrer if this is the user's first paid order ≥ ₹999
-  const userPaidCount = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE user_id = ? AND status = 'paid'").get(order.user_id).n;
-  if (userPaidCount === 1 && order.total >= 999) {
-    const event = db.prepare("SELECT * FROM referral_events WHERE referred_user_id = ? AND status = 'pending'").get(order.user_id);
-    if (event) {
-      db.prepare('UPDATE users SET wallet_credit = wallet_credit + ? WHERE id = ?').run(event.credit_amount, event.referrer_user_id);
-      db.prepare("UPDATE referral_events SET status = 'credited', order_id = ? WHERE id = ?").run(order.id, event.id);
-      console.log(`[referral] credited ₹${event.credit_amount} to user ${event.referrer_user_id}`);
-    }
-  }
-
-  // 6. Clear cart
-  db.prepare('DELETE FROM cart_items WHERE user_id = ?').run(order.user_id);
+// ─── Internal: decrement local stock for each book in an order ─────────────
+function decrementLocalStock(orderId) {
+  const items = db.prepare('SELECT book_id, qty FROM order_items WHERE order_id = ?').all(orderId);
+  const dec = db.prepare('UPDATE books SET stock = MAX(stock - ?, 0) WHERE id = ?');
+  for (const it of items) if (it.book_id) dec.run(it.qty, it.book_id);
 }
 
-// Export for webhook reuse
+// ─── Internal: post-order side effects (Shiprocket + Sanity stock) ─────────
+async function kickoffPostOrderSideEffects(orderId) {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) return;
+  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+  const address = JSON.parse(order.address_json);
+
+  // Sanity stock decrement (best-effort)
+  await Promise.all(items
+    .filter((i) => i.book_id)
+    .map((i) => sanity.decrementStock(i.book_id, i.qty).catch(() => {})));
+
+  // Shiprocket order
+  try {
+    const ship = await shiprocket.createShiprocketOrder({ order, items, address });
+    db.prepare(`UPDATE orders SET shiprocket_order_id = ?, shiprocket_shipment_id = ?, tracking_url = ? WHERE id = ?`)
+      .run(ship.order_id, ship.shipment_id, ship.tracking_url, orderId);
+  } catch (e) { console.error('[shiprocket]', e.message); }
+}
+
+// Mark order paid → trigger post-payment chain. Idempotent (gated by status).
+async function markPaidAndFulfill(order, paymentId) {
+  const flip = db.prepare(
+    `UPDATE orders SET status = 'paid', razorpay_payment_id = ?, updated_at = ? WHERE id = ? AND status = 'placed'`
+  ).run(paymentId, Date.now(), order.id);
+
+  // If we didn't actually flip the row, another path already paid this order.
+  // Skip side-effects to avoid double-shipment / double-notify.
+  if (!flip.changes) return;
+
+  decrementLocalStock(order.id);
+  await kickoffPostOrderSideEffects(order.id);
+
+  await notify.notify(order.customer_phone, 'payment_received',
+    { orderId: order.id, total: order.total })
+    .catch((e) => console.error('[notify]', e));
+}
+
 export { markPaidAndFulfill };
 
-// ─── GET /orders ─────────────────────────────────────────────────────────
-r.get('/orders', requireAuth, (req, res) => {
-  const orders = db.prepare(`
-    SELECT id, status, subtotal, saved, tier_discount, shipping, total,
-           payment_method, tracking_url, created_at
-    FROM orders WHERE user_id = ? ORDER BY created_at DESC
-    LIMIT 50
-  `).all(req.user.uid);
-  res.json(orders);
-});
-
-// ─── GET /orders/:id ─────────────────────────────────────────────────────
-r.get('/orders/:id', requireAuth, (req, res) => {
-  const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.uid);
-  if (!order) return res.status(404).json({ error: 'not found' });
-  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
-  const address = typeof order.address_json === 'string' ? JSON.parse(order.address_json) : order.address_json;
-  res.json({ ...order, address, items, address_json: undefined });
-});
+// ─── Cleanup of legacy authenticated endpoints ─────────────────────────────
+// /orders (list mine) → moved to /orders/by-phone in customer.js
+// /orders/:id (mine)  → moved to /orders/lookup/:id in customer.js (phone-gated)
 
 export default r;

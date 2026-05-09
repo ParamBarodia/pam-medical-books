@@ -196,7 +196,7 @@ export function BookCover({ book, width = 138, height = 196 }) {
 // ────────────────────────────────────────────────────────────────────────────
 // Layout chrome
 // ────────────────────────────────────────────────────────────────────────────
-export function UtilityStrip({ user, onSignIn, onLogout }) {
+export function UtilityStrip() {
   return (
     <div className="ms-utility-strip" style={{
       background: 'var(--paper-2)', color: 'var(--muted)',
@@ -216,11 +216,7 @@ export function UtilityStrip({ user, onSignIn, onLogout }) {
         </div>
         <div className="ms-utility-strip-right" style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
           <a href="https://wa.me/919912817189" style={{ color: '#1f7a3a' }}>WhatsApp +91 99128 17189</a>
-          <span>Track Order</span>
-          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Refer & Earn ₹200</span>
-          {user
-            ? <span><strong>{user.name}</strong> · <button onClick={onLogout} style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign out</button></span>
-            : <button onClick={onSignIn} style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</button>}
+          <a href="/track" style={{ color: 'var(--ink-2)' }}>Track Order</a>
         </div>
       </div>
     </div>
@@ -254,7 +250,7 @@ export function Ticker() {
 
 const CATEGORIES = ['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'];
 
-export function Navbar({ user, cartCount = 0, wishCount = 0, query, setQuery, activeCategory, setActiveCategory, onOpenCart, onSignIn, onOpenWishlist, onOpenAccount }) {
+export function Navbar({ cartCount = 0, query, setQuery, activeCategory, setActiveCategory, onOpenCart }) {
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)' }}>
       <div className="ms-container ms-navbar-row" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 32px',
@@ -271,8 +267,7 @@ export function Navbar({ user, cartCount = 0, wishCount = 0, query, setQuery, ac
           <SearchBar query={query} setQuery={setQuery} />
         </div>
         <div className="ms-navbar-icons" style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <NavIcon icon="user"  label="Account"  onClick={user ? onOpenAccount : onSignIn} />
-          <NavIcon icon="heart" label="Wishlist" badge={wishCount} onClick={user ? onOpenWishlist : onSignIn} />
+          <NavIcon icon="package" label="Track" onClick={() => window.location.href = '/track'} />
           <NavIcon icon="cart"  label="Cart"     badge={cartCount} highlight onClick={onOpenCart} />
         </div>
       </div>
@@ -567,7 +562,7 @@ export function SectionHead({ eyebrow, title, subtitle, link }) {
 // ────────────────────────────────────────────────────────────────────────────
 // BookCard — paper background, % off corner badge, retail signals
 // ────────────────────────────────────────────────────────────────────────────
-export function BookCard({ book, onAdd, onWish, onOpen, wished }) {
+export function BookCard({ book, onAdd, onOpen }) {
   const [hover, setHover] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const discount = Math.round((1 - book.price / book.mrp) * 100);
@@ -600,15 +595,6 @@ export function BookCard({ book, onAdd, onWish, onOpen, wished }) {
           color: 'var(--paper)', padding: '4px 9px', fontSize: 9.5, fontWeight: 700,
           fontFamily: 'var(--sans)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>{book.tag}</span>
       )}
-
-      <button onClick={(e) => { e.stopPropagation(); onWish(); }}
-        aria-label={wished ? 'Remove from wishlist' : 'Add to wishlist'} aria-pressed={wished}
-        style={{ position: 'absolute', top: 6, right: 6, zIndex: 3, width: 32, height: 32,
-          background: 'var(--paper)', border: '1px solid var(--rule-soft)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: wished ? 'var(--accent)' : 'var(--muted)' }}>
-        <Icon name={wished ? 'heart-fill' : 'heart'} size={14} />
-      </button>
 
       <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0 14px',
         background: 'var(--paper-2)', margin: '-16px -16px 14px',
@@ -643,7 +629,7 @@ export function BookCard({ book, onAdd, onWish, onOpen, wished }) {
   );
 }
 
-export function BookGrid({ eyebrow, title, subtitle, books, loading, onAdd, onWish, onOpen, wished, density = 5, marginNote }) {
+export function BookGrid({ eyebrow, title, subtitle, books, loading, onAdd, onOpen, density = 5, marginNote }) {
   const ref = useReveal();
   return (
     <section ref={ref} style={{ borderBottom: '1px solid var(--rule)', position: 'relative' }}>
@@ -659,8 +645,7 @@ export function BookGrid({ eyebrow, title, subtitle, books, loading, onAdd, onWi
               ))
             : (books || []).slice(0, density * 2).map((b) => (
                 <BookCard key={b.id} book={b}
-                  onAdd={() => onAdd(b)} onWish={() => onWish(b.id)} onOpen={() => onOpen(b)}
-                  wished={wished.has(b.id)} />
+                  onAdd={() => onAdd(b)} onOpen={() => onOpen(b)} />
               ))}
         </div>
       </div>
