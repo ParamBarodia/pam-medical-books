@@ -3,11 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './../api.js';
 
-const ACCENT = '#8B2A1F';
-const PAPER = '#f7efdc';
-const INK = '#1c1a14';
-const MUTED = '#6b665a';
-const RULE = 'rgba(28,26,20,0.12)';
+// Use the same tokens as the storefront. Previously these were inline hex
+// constants that drifted out of sync (PAPER was #f7efdc while --paper is
+// #f4ede0). Renamed for clarity but the variable names are kept to
+// minimise churn in the rest of this file.
+const ACCENT = 'var(--oxblood)';
+const PAPER  = 'var(--paper)';
+const INK    = 'var(--ink)';
+const MUTED  = 'var(--muted)';
+const RULE   = 'var(--rule-soft)';
+const HEADER_BG = 'var(--paper-2)';   // was hard-coded 'white' — kill pure white
 
 export default function AdminApp() {
   const [me, setMe] = useState(undefined);   // undefined = checking, null = logged out
@@ -22,7 +27,7 @@ export default function AdminApp() {
 
   return (
     <div style={{ background: PAPER, minHeight: '100vh', paddingBottom: 70 }}>
-      <header style={{ background: 'white', borderBottom: `1px solid ${RULE}`, padding: '14px 20px',
+      <header style={{ background: HEADER_BG, borderBottom: `1px solid ${RULE}`, padding: '14px 20px',
         display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ flex: 1 }}>
           <div className="display" style={{ fontSize: 18, fontWeight: 700, color: INK }}>Pam Admin</div>
@@ -42,7 +47,7 @@ export default function AdminApp() {
         {tab === 'requests' && <RequestsTab />}
       </main>
 
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 60, background: 'white',
+      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 60, background: HEADER_BG,
         borderTop: `1px solid ${RULE}`, display: 'flex', zIndex: 10 }}>
         {[
           { id: 'orders', label: 'Orders' },
@@ -93,7 +98,7 @@ function Login({ onSuccess }) {
 
   return (
     <div style={{ minHeight: '100vh', background: PAPER, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 380, background: 'white', padding: 32, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
+      <div style={{ width: '100%', maxWidth: 380, background: HEADER_BG, padding: 32, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
         <div className="display" style={{ fontSize: 24, fontWeight: 700, color: INK, marginBottom: 4 }}>Pam Admin</div>
         <div style={{ fontSize: 13, color: MUTED, marginBottom: 24 }}>
           {step === 1 ? 'Enter your phone to receive a one-time code.' : `Enter the 6-digit code sent to +91 ${phone}.`}
@@ -247,7 +252,7 @@ function StockTab() {
       <H title="Stock" />
       <input value={q} onChange={e => setQ(e.target.value)}
         placeholder="Search title / ISBN / author"
-        style={{ width: '100%', padding: 12, fontSize: 14, border: `1px solid ${RULE}`, marginBottom: 14, background: 'white' }} />
+        style={{ width: '100%', padding: 12, fontSize: 14, border: `1px solid ${RULE}`, marginBottom: 14, background: HEADER_BG }} />
       {books === null && <div style={{ color: MUTED, fontSize: 13 }}>Loading…</div>}
       {books?.map(b => (
         <Card key={b.id}>
@@ -345,7 +350,7 @@ function IsbnAdd() {
           </div>
           <div style={{ marginTop: 8 }}>
             <select value={extra.category} onChange={e => setExtra(x => ({ ...x, category: e.target.value }))}
-              style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: 'white' }}>
+              style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: HEADER_BG }}>
               {['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'].map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
@@ -385,7 +390,7 @@ function ManualAdd() {
         <Input label="Stock" value={b.stock} onChange={v => set('stock')(v.replace(/\D/g, ''))} inputMode="numeric" />
       </div>
       <select value={b.category} onChange={e => set('category')(e.target.value)}
-        style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: 'white', marginTop: 8 }}>
+        style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: HEADER_BG, marginTop: 8 }}>
         {['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'].map(c => <option key={c}>{c}</option>)}
       </select>
       {err && <div style={{ marginTop: 8, fontSize: 13, color: ACCENT }}>{err}</div>}
@@ -448,7 +453,7 @@ function CenterMsg({ children }) {
 function H({ title }) { return <div className="display" style={{ fontSize: 24, fontWeight: 700, marginBottom: 14 }}>{title}</div>; }
 function Card({ children, onClick }) {
   return (
-    <div onClick={onClick} style={{ background: 'white', padding: 14, marginBottom: 10, border: `1px solid ${RULE}`, cursor: onClick ? 'pointer' : 'default' }}>
+    <div onClick={onClick} style={{ background: HEADER_BG, padding: 14, marginBottom: 10, border: `1px solid ${RULE}`, cursor: onClick ? 'pointer' : 'default' }}>
       {children}
     </div>
   );
@@ -478,7 +483,7 @@ function Input({ label, prefix, value, onChange, placeholder, inputMode, style =
   return (
     <label style={{ display: 'block', marginBottom: 8, ...style }}>
       {label && <span style={{ display: 'block', fontSize: 11, color: MUTED, fontWeight: 600, marginBottom: 4, letterSpacing: '0.04em' }}>{label}</span>}
-      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${RULE}`, background: 'white' }}>
+      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${RULE}`, background: HEADER_BG }}>
         {prefix && <span style={{ padding: '0 0 0 12px', color: MUTED, fontSize: 14 }}>{prefix}</span>}
         <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode}
           style={{ flex: 1, padding: '12px 12px', fontSize: 14, border: 'none', outline: 'none', background: 'transparent' }} />
@@ -491,7 +496,7 @@ function Drawer({ children, onClose, title }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: 'white', width: '100%', maxWidth: 600, maxHeight: '85vh', overflowY: 'auto',
+        background: HEADER_BG, width: '100%', maxWidth: 600, maxHeight: '85vh', overflowY: 'auto',
         padding: 20, borderRadius: '16px 16px 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="display" style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>

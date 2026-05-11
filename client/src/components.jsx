@@ -2,6 +2,7 @@
 // Pure presentation; data comes from props. State (cart/wishlist/auth) lives in App.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { assetUrl } from './api.js';
+import { archiveCode } from './lib/archive-code.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Differentiation hooks & primitives
@@ -273,7 +274,11 @@ export function Navbar({ cartCount = 0, query, setQuery, activeCategory, setActi
           <NavIcon icon="cart"  label="Cart"     badge={cartCount} highlight onClick={onOpenCart} />
         </div>
       </div>
-      <nav aria-label="Categories" style={{ background: 'var(--accent)', color: 'var(--paper)' }}>
+      <nav aria-label="Categories" style={{
+        background: 'var(--paper)', color: 'var(--ink-2)',
+        borderTop: '1px solid var(--rule-hair)',
+        borderBottom: '1px solid var(--rule-soft)',
+      }}>
         <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', overflowX: 'auto' }} className="no-scrollbar">
@@ -282,8 +287,8 @@ export function Navbar({ cartCount = 0, query, setQuery, activeCategory, setActi
               <CatBtn key={c} label={c} active={activeCategory === c} onClick={() => setActiveCategory(c)} />
             ))}
           </div>
-          <div className="ms-utility-strip-right sans" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="package" size={14} aria-hidden="true" /> Free Shipping ₹499+
+          <div className="ms-utility-strip-right" style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--muted)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="package" size={14} aria-hidden="true" /> Free shipping above ₹999
           </div>
         </div>
       </nav>
@@ -343,12 +348,18 @@ function CatBtn({ label, active, onClick, first }) {
   return (
     <button onClick={onClick}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      className="sans"
-      style={{ padding: '14px 18px', fontSize: 12, fontWeight: 500, letterSpacing: '0.04em',
-        whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.12)',
-        borderLeft: first ? '1px solid rgba(255,255,255,0.12)' : 'none',
-        background: active || hover ? 'rgba(0,0,0,0.18)' : 'transparent',
-        color: 'var(--paper)', transition: 'background .15s' }}>
+      className={`serif ${active ? 'ms-hand-underline' : ''}`}
+      style={{
+        padding: '14px 18px', fontSize: 14, fontWeight: 500,
+        fontStyle: active ? 'italic' : 'normal',
+        letterSpacing: '0.01em',
+        whiteSpace: 'nowrap',
+        borderRight: '1px solid var(--rule-hair)',
+        borderLeft: first ? '1px solid var(--rule-hair)' : 'none',
+        background: 'transparent',
+        color: active ? 'var(--oxblood)' : (hover ? 'var(--ink-deep)' : 'var(--ink-2)'),
+        transition: 'color var(--dur-micro) var(--ease-micro)',
+      }}>
       {label}
     </button>
   );
@@ -366,9 +377,11 @@ const FALLBACK_HERO_BOOK = {
   cover: { bg: '#7a1e2b', accent: '#f0d8a0', style: 'medical' },
 };
 
-const SLIDE_INTERVAL_MS = 6500;
-const FIRST_ADVANCE_MS = 2500;   // First peel fires sooner so the effect is immediately visible
-const FLIP_DURATION_MS = 1100;
+// v2 timings: linger longer on each chapter so the user reads it.
+// First peel still fires sooner so the gesture is discoverable.
+const SLIDE_INTERVAL_MS = 18000;   // was 6500 — chapters need time to read
+const FIRST_ADVANCE_MS  = 3200;    // was 2500
+const FLIP_DURATION_MS  = 1100;    // unchanged — manual feel
 
 // Read OS-level reduced-motion preference. Used to pause the JS-driven
 // auto-advance entirely (the CSS peel is still scoped via @media but the
@@ -458,18 +471,20 @@ export function Hero({ books = [], onAdd, onOpen }) {
           }}
           style={{
             position: 'relative',
-            minHeight: 420,
-            background: 'var(--paper-2)',
+            minHeight: 560,
+            background: 'var(--paper-deep)',
             overflow: 'hidden',
           }}
         >
           {/* The "next" page sits beneath the current one, full bleed */}
           <div className="ms-hero-stack ms-hero-stack-next" aria-hidden="true">
-            <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen} />
+            <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen}
+              chapter={((index + 1) % slides.length) + 1} total={slides.length} />
           </div>
           {/* The "current" page on top — clip-path animates it peeling away */}
           <div className={`ms-hero-stack ms-hero-stack-current ${peeling ? 'is-peeling' : ''}`}>
-            <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen} />
+            <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen}
+              chapter={index + 1} total={slides.length} />
             {/* The fold-shadow pseudo overlay — also clipped, gives the bent-paper highlight */}
             <div className="ms-hero-fold" aria-hidden="true" />
           </div>
@@ -501,9 +516,9 @@ export function Hero({ books = [], onAdd, onOpen }) {
           </div>
 
           {slides.length > 1 && (
-            <div role="tablist" aria-label="Choose a slide" style={{
-              position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)',
-              display: 'flex', gap: 6, zIndex: 6,
+            <div role="tablist" aria-label="Choose a chapter" style={{
+              position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', gap: 20, alignItems: 'center', zIndex: 6,
             }}>
               {slides.map((_, i) => (
                 <button key={i}
@@ -511,13 +526,21 @@ export function Hero({ books = [], onAdd, onOpen }) {
                   role="tab"
                   aria-selected={i === index}
                   aria-current={i === index ? 'true' : undefined}
-                  aria-label={`Go to slide ${i + 1}`}
+                  aria-label={`Chapter ${i + 1}`}
+                  className={i === index ? 'ms-hand-underline' : ''}
                   style={{
-                    width: i === index ? 22 : 7, height: 7, borderRadius: 4,
-                    background: i === index ? 'var(--accent)' : 'rgba(255,255,255,0.45)',
-                    border: 'none', padding: 0, cursor: 'pointer',
-                    transition: 'width 280ms ease, background 280ms ease',
-                  }} />
+                    fontFamily: 'var(--serif)',
+                    fontSize: i === index ? 18 : 14,
+                    fontStyle: 'italic',
+                    fontWeight: 500,
+                    color: i === index ? 'var(--oxblood)' : 'var(--muted)',
+                    background: 'transparent', border: 'none', padding: '4px 2px',
+                    cursor: 'pointer',
+                    transition: 'font-size 280ms var(--ease-micro), color 280ms var(--ease-micro)',
+                    minWidth: 24,
+                  }}>
+                  {toRoman(i + 1)}
+                </button>
               ))}
             </div>
           )}
@@ -535,72 +558,170 @@ export function Hero({ books = [], onAdd, onOpen }) {
   );
 }
 
-// The interior of a single hero page — the book "open" against a teal spread.
-function HeroPageContent({ book, onAdd, onOpen }) {
+// ─── HeroPageContent — Archive Viewer chapter spread ─────────────────────
+// Replaces the teal-gradient ecommerce panel with a paper-warm archival
+// composition. Each "slide" is treated as a chapter from the archive:
+//   • left column   — still-life: book cover + stamp + dispatch slip
+//   • right column  — oversized chapter type + scholarly annotation + CTA
+//   • bottom strip  — archive footer (PMB · YEAR · VOL · DISPATCH)
+//
+// Photography is the brief's strictest rule, but the production catalogue
+// won't have flat-lays until Pam shoots them. Until then the still-life
+// is composed from assets we DO have (real cover image, real archive
+// code, real metadata) — never procedural gradient art.
+function HeroPageContent({ book, onAdd, onOpen, chapter, total }) {
   const off = Math.round((1 - book.price / book.mrp) * 100);
+  const code = bookArchiveCode(book);
+  const roman = toRoman(chapter || 1);
+  const collection = book.collection || book.tag || 'Featured Acquisitions';
+
   return (
     <div style={{
       width: '100%', height: '100%',
-      background: 'linear-gradient(115deg, #1a4a52 0%, #2c6470 60%, #1a4a52 100%)',
-      color: 'var(--paper)', padding: '40px 56px', position: 'relative', overflow: 'hidden',
-      display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'center',
+      background:
+        'radial-gradient(ellipse at 25% 30%, rgba(216,201,174,0.55) 0%, transparent 55%),' +
+        'radial-gradient(ellipse at 80% 80%, rgba(15,13,8,0.10) 0%, transparent 50%),' +
+        'var(--paper-deep)',
+      color: 'var(--ink)',
+      padding: '56px 64px 80px', position: 'relative', overflow: 'hidden',
+      display: 'grid', gridTemplateColumns: '0.95fr 1.05fr', gap: 64, alignItems: 'center',
     }}>
+      {/* Vertical chapter marker top-left */}
       <div aria-hidden="true" style={{
-        position: 'absolute', left: '42%', top: '10%', width: 240, height: 200,
-        background: 'var(--saffron)', opacity: 0.7, pointerEvents: 'none',
-      }} />
-      <div aria-hidden="true" style={{
-        position: 'absolute', left: '50%', top: '45%', width: 200, height: 180,
-        background: 'var(--accent)', opacity: 0.4, pointerEvents: 'none',
-      }} />
-
-      <div style={{
-        position: 'relative', background: 'var(--paper)', color: 'var(--ink)',
-        padding: '36px 44px', maxWidth: 520,
-        boxShadow: '0 18px 40px -16px rgba(0,0,0,0.45)',
+        position: 'absolute', top: 32, left: 56,
+        display: 'flex', flexDirection: 'column', gap: 6,
       }}>
-        <div className="eyebrow" style={{ color: 'var(--accent)', letterSpacing: '0.32em' }}>{book.tag || 'Featured · 2026'}</div>
-        <h1 className="display ms-hero-h1" style={{
-          fontWeight: 500, fontSize: 'clamp(24px, 3vw, 38px)',
-          letterSpacing: '-0.02em', lineHeight: 1.05, marginTop: 12, color: 'var(--ink)',
-        }}>{book.title}</h1>
-        <div style={{ height: 1, background: 'var(--accent)', opacity: 0.5, margin: '14px 0', width: 90 }} />
-        <div className="serif" style={{ fontSize: 13, color: 'var(--ink-2)' }}>
-          By {book.author} · {book.edition}
-        </div>
-        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span className="serif" style={{ fontWeight: 600, fontSize: 22, color: 'var(--accent)' }}>
-              ₹{book.price.toLocaleString('en-IN')}
-            </span>
-            <span className="mono" style={{ fontSize: 14, color: 'var(--muted)', textDecoration: 'line-through' }}>
-              ₹{book.mrp.toLocaleString('en-IN')}
-            </span>
-          </div>
-          <span className="sans" style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', letterSpacing: '0.04em' }}>
-            You save ₹{(book.mrp - book.price).toLocaleString('en-IN')} ({off}%)
-          </span>
-        </div>
-        <button onClick={() => onAdd && onAdd(book)} className="ms-btn ms-btn-ink" style={{ marginTop: 16, padding: '12px 24px' }}>
-          Buy Now <span className="ms-arrow">→</span>
-        </button>
+        <span className="t-eyebrow" style={{ color: 'var(--muted)', letterSpacing: '0.32em' }}>Chapter</span>
+        <span className="t-display-l" style={{ fontStyle: 'italic', color: 'var(--oxblood)', lineHeight: 1, fontSize: 56 }}>
+          {roman}
+        </span>
       </div>
 
-      <div className="ms-hero-cover" style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+      {/* LEFT — still-life composition */}
+      <div className="ms-hero-cover" style={{
+        position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        paddingTop: 24,
+      }}>
+        {/* paper backing card */}
+        <div aria-hidden="true" style={{
+          position: 'absolute', inset: '8% 18% 8% 18%',
+          background: 'var(--paper)',
+          boxShadow: '0 28px 56px -24px rgba(15,13,8,0.32), 0 8px 16px -8px rgba(15,13,8,0.18)',
+          transform: 'rotate(-1.2deg)',
+        }} />
+        {/* dispatch slip behind the book */}
+        <div aria-hidden="true" style={{
+          position: 'absolute', left: '8%', bottom: '14%',
+          background: 'var(--paper-2)',
+          border: '1px solid var(--rule-soft)',
+          padding: '10px 14px',
+          transform: 'rotate(-6deg)',
+          boxShadow: '0 8px 18px -10px rgba(15,13,8,0.32)',
+          minWidth: 180,
+        }}>
+          <div className="t-archive" style={{ fontSize: 9 }}>Dispatch slip</div>
+          <div className="t-mono" style={{ fontSize: 10, marginTop: 4, color: 'var(--ink-2)' }}>{code}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 6,
+            fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)',
+            borderTop: '1px dashed var(--rule-hair)', paddingTop: 4 }}>
+            <span>Ahmedabad</span><span>2 w.d.</span>
+          </div>
+        </div>
+
         <button
           onClick={() => onOpen && onOpen(book)}
           aria-label={`Open ${book.title}`}
-          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
-          <div style={{ transform: 'rotate(2deg)', position: 'relative' }}>
-            <BookCover book={book} width={200} height={282} />
-            <div style={{ position: 'absolute', bottom: -18, right: -34, zIndex: 5 }}>
-              <StampSeal rotate={-14}>{book.edition?.split(' ')[0] || 'New'}<br/>Edition</StampSeal>
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', zIndex: 2 }}>
+          <div style={{ transform: 'rotate(1.4deg)', position: 'relative' }}>
+            <BookCover book={book} width={232} height={328} />
+            <div style={{ position: 'absolute', bottom: -22, right: -42, zIndex: 5 }}>
+              <StampSeal rotate={-12}>{book.edition?.split(' ')[0] || 'New'}<br/>Edition</StampSeal>
             </div>
           </div>
         </button>
       </div>
+
+      {/* RIGHT — editorial type */}
+      <div style={{ position: 'relative', maxWidth: 560 }}>
+        <div className="t-eyebrow" style={{ color: 'var(--oxblood)', letterSpacing: '0.28em' }}>
+          {collection}
+        </div>
+        <h1 className="t-display-l ms-hero-h1" style={{ marginTop: 16, marginBottom: 0, color: 'var(--ink-deep)' }}>
+          {book.title}
+        </h1>
+        <div aria-hidden="true" style={{
+          height: 1, width: 64, background: 'var(--oxblood)', margin: '20px 0', opacity: 0.85,
+        }} />
+        <p className="t-meta" style={{ margin: 0, fontSize: 14, color: 'var(--ink-2)' }}>
+          By <span style={{ fontStyle: 'normal', color: 'var(--ink-deep)', fontWeight: 500 }}>{book.author}</span>
+          {book.edition ? <> · {book.edition}</> : null}
+          {book.publisher ? <> · {book.publisher}</> : null}
+        </p>
+
+        {book.annotation && (
+          <p className="t-body" style={{
+            marginTop: 22, marginBottom: 0, fontFamily: 'var(--serif)', fontStyle: 'italic',
+            color: 'var(--ink-2)', maxWidth: 480, lineHeight: 1.65,
+          }}>
+            {book.annotation}
+          </p>
+        )}
+
+        {/* Price — engraved, restrained */}
+        <div style={{ marginTop: 28, display: 'flex', alignItems: 'baseline', gap: 14 }}>
+          <span style={{
+            fontFamily: 'var(--serif)', fontWeight: 600, fontSize: 28,
+            fontFeatureSettings: '"tnum","lnum"', color: 'var(--oxblood)',
+          }}>
+            ₹{book.price.toLocaleString('en-IN')}
+          </span>
+          <span className="t-mono" style={{ color: 'var(--muted)', textDecoration: 'line-through' }}>
+            ₹{book.mrp.toLocaleString('en-IN')}
+          </span>
+          <span className="t-meta" style={{ fontStyle: 'italic', fontSize: 12, color: 'var(--muted)' }}>
+            saving ₹{(book.mrp - book.price).toLocaleString('en-IN')} ({off}%)
+          </span>
+        </div>
+
+        <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 24 }}>
+          <button onClick={() => onAdd && onAdd(book)} className="ms-btn ms-btn-primary">
+            Add to archive <span className="ms-arrow">→</span>
+          </button>
+          <button onClick={() => onOpen && onOpen(book)} className="ms-btn-link ms-arrow-link ms-hand-underline">
+            View collection <span className="ms-arrow">→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Archive footer */}
+      <div aria-hidden="true" style={{
+        position: 'absolute', left: 64, right: 64, bottom: 28,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderTop: '1px solid var(--rule-hair)', paddingTop: 14,
+        fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)',
+        letterSpacing: '0.12em', textTransform: 'uppercase',
+      }}>
+        <span>{code}</span>
+        <span style={{ fontStyle: 'italic', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--serif)', fontSize: 12 }}>
+          Vol. {toRoman(2026 - 2020 + 1)} · Folio {String(chapter || 1).padStart(2, '0')}
+          {total ? <> of {String(total).padStart(2, '0')}</> : null}
+        </span>
+        <span>Pam Medical Books · Ahmedabad</span>
+      </div>
     </div>
   );
+}
+
+// Tiny helpers kept local to the hero — no need to factor out.
+function bookArchiveCode(book) {
+  return archiveCode(book);
+}
+function toRoman(n) {
+  const map = [['M',1000],['CM',900],['D',500],['CD',400],['C',100],['XC',90],
+               ['L',50],['XL',40],['X',10],['IX',9],['V',5],['IV',4],['I',1]];
+  let out = '';
+  for (const [r, v] of map) { while (n >= v) { out += r; n -= v; } }
+  return out;
 }
 
 export function TrustStrip() {
@@ -636,13 +757,17 @@ export function TrustStrip() {
 // ────────────────────────────────────────────────────────────────────────────
 // CourseTiles — Medioks-style color-tinted faculty tiles
 // ────────────────────────────────────────────────────────────────────────────
+// v2: pastels replaced by low-saturation washes of brand tokens.
+// The colour-shift trick (each tile a different hue) was kindergarten-
+// EdTech; the new scheme reads as ink/oxblood/saffron variations of the
+// same paper.
 const COURSE_TINTS = [
-  { name: 'MBBS',     sub: '1st – Final year',         tint: '#fde6d8', hue: '#a85328' },
-  { name: 'BDS',      sub: 'Dental sciences',          tint: '#dceee2', hue: '#1f6a4a' },
-  { name: 'Nursing',  sub: 'GNM · B.Sc · M.Sc',        tint: '#e7e0f3', hue: '#5a4793' },
-  { name: 'NEET-PG',  sub: 'Final sprint, all 19 subjects', tint: '#fdecd1', hue: '#9c6a17' },
-  { name: 'MD/MS',    sub: 'Speciality references',    tint: '#dde7f3', hue: '#2c5689' },
-  { name: 'Faculty',  sub: 'Reference & teaching',     tint: '#ede2d5', hue: '#7a5028' },
+  { name: 'MBBS',     sub: '1st – Final year',              tint: '#ece2d0', hue: '#6e2117' },
+  { name: 'BDS',      sub: 'Dental sciences',               tint: '#e8dcc6', hue: '#4a6648' },
+  { name: 'Nursing',  sub: 'GNM · B.Sc · M.Sc',             tint: '#ece2d0', hue: '#2a1f12' },
+  { name: 'NEET-PG',  sub: 'Final sprint, 19 subjects',     tint: '#e8dcc6', hue: '#9c6a17' },
+  { name: 'MD/MS',    sub: 'Speciality references',         tint: '#ece2d0', hue: '#3a352a' },
+  { name: 'Faculty',  sub: 'Reference & teaching',          tint: '#e8dcc6', hue: '#c8893e' },
 ];
 
 export function CourseTiles() {
@@ -750,21 +875,24 @@ export function BookCard({ book, onAdd, onOpen }) {
         <BookCover book={book} />
       </div>
 
-      <h3 className="serif" style={{ fontSize: 14.5, lineHeight: 1.2, fontWeight: 500, color: 'var(--ink)',
+      <h3 className="serif" style={{ fontSize: 15, lineHeight: 1.2, fontWeight: 500, color: 'var(--ink)',
         margin: '0 0 4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
-        {book.title} <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>· {book.edition}</span>
+        {book.title} <span className="t-mono" style={{ color: 'var(--muted)' }}>· {book.edition}</span>
       </h3>
-      <div className="serif" style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--muted)', marginTop: 4 }}>{book.author}</div>
+      <div className="t-meta" style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{book.author}</div>
+
+      {/* Archive code — the inhabited-world line */}
+      <div className="t-archive" style={{ marginTop: 8, fontSize: 10 }}>{archiveCode(book)}</div>
 
       <div style={{ marginTop: 'auto', paddingTop: 12 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-2)' }}>
-          <span style={{ color: 'var(--gold)' }}>★</span><span>{book.rating?.toFixed(1)}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-2)', fontFeatureSettings: '"tnum","lnum"' }}>
+          <span style={{ color: 'var(--saffron)' }}>★</span><span>{book.rating?.toFixed(1)}</span>
           <span style={{ color: 'var(--muted)' }}>({book.reviews?.toLocaleString('en-IN')})</span>
         </span>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 }}>
           <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
-            <span className="serif" style={{ fontSize: 17, fontWeight: 600, color: 'var(--accent)' }}>₹{book.price.toLocaleString('en-IN')}</span>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{book.mrp.toLocaleString('en-IN')}</span>
+            <span className="serif" style={{ fontSize: 17, fontWeight: 600, color: 'var(--oxblood)', fontFeatureSettings: '"tnum","lnum"' }}>₹{book.price.toLocaleString('en-IN')}</span>
+            <span className="t-mono" style={{ color: 'var(--muted)', textDecoration: 'line-through' }}>₹{book.mrp.toLocaleString('en-IN')}</span>
           </span>
           <button onClick={handleAdd} aria-label="Add to cart"
             className="ms-btn-icon"
@@ -908,7 +1036,7 @@ export function SecondHand({ books, onAdd, onOpen }) {
         <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18 }}>
           {books.map(b => {
             const usedDiscount = Math.round((1 - b.price / (b.originalPrice || b.mrp)) * 100);
-            const condColor = b.conditionScore >= 9 ? '#16a34a' : b.conditionScore >= 7 ? '#65a30d' : '#ca8a04';
+            const condColor = b.conditionScore >= 9 ? 'var(--positive)' : b.conditionScore >= 7 ? 'var(--saffron)' : 'var(--warning)';
             return (
               <article key={b.id} onClick={() => onOpen(b)} role="button" tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(b); } }}
@@ -927,7 +1055,7 @@ export function SecondHand({ books, onAdd, onOpen }) {
                   <div className="serif" style={{ fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>{b.soldBy}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 12 }}>
-                  <span className="serif" style={{ fontSize: 19, fontWeight: 600, color: '#16a34a' }}>₹{b.price.toLocaleString('en-IN')}</span>
+                  <span className="serif" style={{ fontSize: 19, fontWeight: 600, color: 'var(--oxblood)', fontFeatureSettings: '"tnum","lnum"' }}>₹{b.price.toLocaleString('en-IN')}</span>
                   <span className="mono" style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{(b.originalPrice || b.mrp).toLocaleString('en-IN')}</span>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); onAdd(b); }} className="ms-btn ms-btn-ink"
@@ -966,7 +1094,9 @@ export function GenuineBanner() {
 
 export function Testimonials({ testimonials }) {
   if (!testimonials?.length) return null;
-  const sourceColors = { Google: '#4285F4', WhatsApp: '#25D366', Trustpilot: '#00B67A' };
+  // Demoted from full brand-colour pills (Google blue / WhatsApp green) to
+  // archival muted ink — the source is metadata, not a logo placement.
+  const sourceColors = { Google: 'var(--ink-2)', WhatsApp: 'var(--positive)', Trustpilot: 'var(--positive)' };
   return (
     <section style={{ background: 'var(--paper-2)', borderBottom: '1px solid var(--rule-soft)' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '80px 32px' }}>
@@ -1026,7 +1156,7 @@ export function Footer() {
     { title: 'Help',      links: ['FAQs','Shipping','Cancellation','Privacy','Terms'] },
   ];
   return (
-    <footer style={{ background: 'var(--ink)', color: 'rgba(246,241,231,0.85)', borderTop: '6px solid var(--accent)' }}>
+    <footer style={{ background: 'var(--ink-warm)', color: 'rgba(244,237,224,0.85)', borderTop: '6px solid var(--oxblood)' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '56px 32px 24px' }}>
         <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr', gap: 48 }}>
           <div>
@@ -1064,8 +1194,41 @@ export function Footer() {
             textTransform: 'uppercase', display: 'inline-block', marginRight: 10 }}>Popular Searches:</strong>
           MBBS 1st Year Books · Robbins Pathology · Gray's Anatomy · BD Chaurasia · Park's PSM · Bailey & Love · Harrison's Medicine · NEET-PG Books · Marrow MCQs · Lippincott Biochemistry · Stethoscopes · Dissection Kits
         </div>
-        <div className="mono" style={{ paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, fontSize: 10.5, color: 'rgba(246,241,231,0.5)' }}>
+        {/* ─── COLOPHON ─── editorial sites credit their materials. Ecommerce sites
+              don't. The colophon is on-brand specifically because it's anachronistic
+              for a shop. */}
+        <div style={{
+          marginTop: 28, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.08)',
+          display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 32,
+          fontFamily: 'var(--serif)', fontSize: 12, color: 'rgba(244,237,224,0.55)',
+        }}>
+          <div>
+            <div className="t-eyebrow" style={{ color: 'rgba(244,237,224,0.55)', marginBottom: 8 }}>Colophon</div>
+            <p style={{ margin: 0, fontStyle: 'italic', lineHeight: 1.55 }}>
+              Set in <span style={{ color: 'var(--saffron)' }}>Fraunces</span>, <span style={{ color: 'var(--saffron)' }}>Source Serif 4</span>, and <span style={{ color: 'var(--saffron)' }}>Inter</span>.
+              Printed on cream paper, dispatched from Ellis Bridge, Ahmedabad.
+            </p>
+          </div>
+          <div>
+            <div className="t-eyebrow" style={{ color: 'rgba(244,237,224,0.55)', marginBottom: 8 }}>Catalogue</div>
+            <p style={{ margin: 0, fontStyle: 'italic', lineHeight: 1.55 }}>
+              Volume XII · Folio 042 · Last revised{' '}
+              <span className="t-mono" style={{ fontStyle: 'normal', fontSize: 11, color: 'rgba(244,237,224,0.7)' }}>
+                {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>.
+            </p>
+          </div>
+          <div>
+            <div className="t-eyebrow" style={{ color: 'rgba(244,237,224,0.55)', marginBottom: 8 }}>Curator</div>
+            <p style={{ margin: 0, fontStyle: 'italic', lineHeight: 1.55 }}>
+              Pam Medical Book House, est. 2020.
+              Curated with care for medical students across India.
+            </p>
+          </div>
+        </div>
+
+        <div className="t-mono" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, fontSize: 10.5, color: 'rgba(244,237,224,0.5)' }}>
           <div>© 2026 Pam Medical Book House · Ahmedabad · GSTIN 24ABCDE1234F1Z5</div>
           <div style={{ display: 'flex', gap: 12 }}>
             <span>VISA</span><span>UPI</span><span>RUPAY</span><span>NETBANKING</span><span>COD</span>

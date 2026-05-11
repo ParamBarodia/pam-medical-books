@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon, BookCover } from './components.jsx';
 import { api } from './api.js';
 import { useDialogFocus } from './hooks.js';
+import { archiveCode } from './lib/archive-code.js';
 
 function loadRazorpayScript() {
   return new Promise((resolve, reject) => {
@@ -58,6 +59,7 @@ export function ProductModal({ book, onClose, onAdd }) {
             <BookCover book={book} width={280} height={390} />
           </div>
           <div style={{ padding: '40px 44px' }}>
+            <div className="t-archive" style={{ marginBottom: 2 }}>{archiveCode(book)}</div>
             <div className="eyebrow" style={{ color: 'var(--muted)' }}>{book.publisher || 'Pam Medical Books'} · {book.category}</div>
             <h1 id="product-modal-title" className="display" style={{ fontSize: 'clamp(22px, 4vw, 32px)', lineHeight: 1.1, margin: '8px 0 6px', fontWeight: 500 }}>{book.title}</h1>
             <div className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic' }}>
@@ -154,6 +156,7 @@ export function CartDrawer({ items, onUpdateQty, onClose, onCheckout }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="serif" style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.title}</div>
                 {item.author && <div className="serif" style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>{item.author} · {item.edition}</div>}
+                {!item.isBundle && <div className="t-archive" style={{ fontSize: 9, marginTop: 4 }}>{archiveCode(item)}</div>}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--rule-soft)', padding: 2 }}>
                     <button onClick={() => onUpdateQty(item.id, -1, item.isBundle)} aria-label="Decrease" style={{ width: 32, height: 32, color: 'var(--muted)' }}><Icon name="minus" size={13} /></button>

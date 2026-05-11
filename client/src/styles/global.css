@@ -1,22 +1,112 @@
 :root {
-  --paper: #f6f1e7;
-  --paper-2: #efe7d6;
-  --paper-3: #e6dcc6;
-  --ink: #1c1a14;
-  --ink-2: #3a352a;
-  --muted: #5a5446;        /* WCAG AA: ~5.6:1 on --paper (was #6f6856 = 4.0:1, fail) */
-  --rule: #2a2620;
-  --rule-soft: #c8bfa8;
-  --accent: #8b2a1f;
-  --accent-soft: #b85a48;
-  --saffron: #d99850;
-  --success: #2c6a4a;
-  --gold: #b8893a;
-  --focus-ring: 0 0 0 3px rgba(139, 42, 31, 0.45);
+  /* ─── Paper ─── 4 stops, warmer + deeper than before */
+  --paper:        #f4ede0;
+  --paper-2:      #ece2d0;
+  --paper-3:      #e2d6bf;
+  --paper-deep:   #d8c9ae;       /* tipped-in plates, hero stage */
+
+  /* ─── Ink ─── 3 stops; ink-deep reserved for display sizes only */
+  --ink-deep:     #0f0d08;
+  --ink:          #1c1a14;
+  --ink-2:        #3a352a;
+  --ink-warm:     #2a1f12;       /* footer, guarantee, dark stages */
+  --muted:        #5a5446;       /* WCAG AA ~5.6:1 on paper */
+
+  /* ─── Rules ─── 3 weights */
+  --rule:         #2a2620;
+  --rule-soft:    #c8bfa8;
+  --rule-hair:    #a89e83;       /* dispatch-slip dotted dividers */
+
+  /* ─── Brand voice ─── oxblood is THE accent. */
+  --oxblood:      #6e2117;       /* deeper than before — primary */
+  --oxblood-soft: #8b2a1f;       /* the previous --accent value */
+  --saffron:      #c8893e;       /* desaturated; used like gold leaf */
+  --positive:     #4a6648;       /* archival sage (not retail green) */
+  --warning:      #9c6a17;
+
+  /* ─── Aliases ─── keep old tokens resolving so existing components
+     keep working while we migrate. New code MUST use the named tokens
+     above. These get culled in a follow-up commit once all callers
+     are off them. */
+  --accent:       var(--oxblood);
+  --accent-soft:  var(--oxblood-soft);
+  --success:      var(--positive);
+  --gold:         var(--saffron);
+
+  --focus-ring:   0 0 0 3px rgba(110, 33, 23, 0.42);
+
+  /* ─── Type scale ─── 8 sizes, no magic numbers allowed */
+  --t-display-xl: clamp(48px, 6vw, 84px);
+  --t-display-l:  clamp(36px, 4vw, 56px);
+  --t-display-m:  28px;
+  --t-body-l:     17px;
+  --t-body:       15px;
+  --t-meta:       13px;
+  --t-mono:       12px;
+  --t-eyebrow:    11px;
+
+  /* ─── Space scale ─── */
+  --sp-1:  4px;  --sp-2:  8px;  --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 24px;  --sp-6: 32px;  --sp-7: 48px;  --sp-8: 64px;
+  --sp-9: 96px;  --sp-10: 128px;
+  --container: 1320px;
+  --gutter:    32px;
+
+  /* ─── Motion ─── two curves, three durations. Everything else is wrong. */
+  --ease-micro:     cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-cinematic: cubic-bezier(0.55, 0.05, 0.32, 1);
+  --dur-micro:    220ms;
+  --dur-comp:     380ms;
+  --dur-cinema:   820ms;
+
+  /* ─── Texture ─── grain has two layers now (ambient + bend-aware) */
+  --grain-opacity: 0.42;
+  --grain-bend:    0;            /* JS RAF-tweens this during page turns */
+
+  /* ─── Typography stacks ─── */
   --serif: "Fraunces", "Source Serif 4", Georgia, serif;
-  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --body:  "Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:  "Inter", ui-sans-serif, system-ui, sans-serif;
+  --mono:  "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+/* ─── Type-scale utility classes ─── */
+.t-display-xl {
+  font-family: var(--serif); font-weight: 500;
+  font-size: var(--t-display-xl); line-height: 0.98;
+  letter-spacing: -0.028em; color: var(--ink-deep);
+  font-variation-settings: "opsz" 144;
+  font-feature-settings: "ss01", "lnum";
+}
+.t-display-l {
+  font-family: var(--serif); font-weight: 500;
+  font-size: var(--t-display-l); line-height: 1.04;
+  letter-spacing: -0.022em; color: var(--ink-deep);
+  font-variation-settings: "opsz" 96;
+}
+.t-display-m {
+  font-family: var(--serif); font-weight: 500;
+  font-size: var(--t-display-m); line-height: 1.12;
+  letter-spacing: -0.018em;
+  font-variation-settings: "opsz" 48;
+}
+.t-body-l { font-size: var(--t-body-l); line-height: 1.6; }
+.t-body   { font-size: var(--t-body);   line-height: 1.6; }
+.t-meta   { font-size: var(--t-meta);   line-height: 1.5; color: var(--muted); font-style: italic; }
+.t-mono   { font-family: var(--mono); font-size: var(--t-mono); font-feature-settings: "tnum","lnum"; }
+.t-eyebrow {
+  font-family: var(--sans); font-size: var(--t-eyebrow);
+  font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--oxblood);
+}
+
+/* Archive code — used in ~8 surfaces site-wide */
+.t-archive {
+  font-family: var(--mono); font-size: 11px;
+  font-feature-settings: "tnum","lnum";
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -45,16 +135,34 @@ a      { color: inherit; text-decoration: none; }
 .toast-enter { animation: slide-up 0.25s ease-out; }
 .badge-pop   { animation: badge-pop 0.5s ease-out; }
 
-/* ─── Differentiation anchor #1: paper grain texture ─── */
-/* Subtle SVG noise overlay on the body — gives every paper surface a "tooth" */
+/* ════════════════════════════════════════════════════════════════════════
+   TEXTURE — two-layer paper grain
+   Layer 1 (::before) is the ambient base — fine grain, always on.
+   Layer 2 (::after)  is coarser fiber, opacity driven by --grain-bend,
+   intended to be tweened up during page-turn motions for a "paper
+   catching light" feel. Both use multiply blend.
+   ════════════════════════════════════════════════════════════════════════ */
 body::before {
   content: '';
   position: fixed; inset: 0; pointer-events: none; z-index: 1;
-  opacity: 0.45;
+  opacity: var(--grain-opacity);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.10 0 0 0 0 0.08 0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   mix-blend-mode: multiply;
 }
-/* Make sure all interactive content sits above the grain layer */
+body::after {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  opacity: var(--grain-bend);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.38' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.13 0 0 0 0 0.09 0 0 0 0.09 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  mix-blend-mode: multiply;
+  transition: opacity 600ms var(--ease-cinematic);
+}
+/* Warm directional light — felt, not seen. 6% max, never moves. */
+body { background-image:
+  linear-gradient(120deg, rgba(200, 137, 62, 0.04) 0%, transparent 38%, rgba(28, 20, 12, 0.05) 100%);
+  background-attachment: fixed;
+}
+/* All interactive content sits above grain layers */
 header, main, footer, [role="dialog"], [role="status"] { position: relative; z-index: 2; }
 
 /* ─── Scroll-reveal — gentle, fail-safe (always visible if JS slow / disabled) ─── */
@@ -186,22 +294,29 @@ html { scroll-behavior: smooth; }
    Six classes, each with a distinct hover/active feel that matches the theme.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* ─── Base — applies to every .ms-btn ─── */
+/* ─── Base — applies to every .ms-btn ───
+   Re-typed for v2: Fraunces serif, sentence-case, modest tracking.
+   "PROCEED TO CHECKOUT" → *Proceed to checkout*. Reads engraved, not
+   shouted; matches the editorial register of the rest of the site. */
 .ms-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-family: var(--sans);
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  font-size: 11px;
-  padding: 14px 24px;
+  gap: 10px;
+  font-family: var(--serif);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  font-size: 14px;
+  font-variation-settings: "opsz" 24;
+  padding: 14px 26px;
   border: 0;
   cursor: pointer;
-  transition: background 0.22s ease, color 0.22s ease, transform 0.12s ease, box-shadow 0.22s ease;
+  transition: background var(--dur-micro) var(--ease-micro),
+              color var(--dur-micro) var(--ease-micro),
+              transform 120ms var(--ease-micro),
+              box-shadow var(--dur-micro) var(--ease-micro);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -217,19 +332,19 @@ html { scroll-behavior: smooth; }
 
 /* ─── Primary (oxblood ink button — main CTAs) ─── */
 .ms-btn-primary {
-  background: var(--accent);
+  background: var(--oxblood);
   color: var(--paper);
-  box-shadow: 0 4px 0 -1px var(--accent), inset 0 0 0 0 rgba(0, 0, 0, 0);
+  box-shadow: 0 4px 0 -1px var(--oxblood);
 }
 .ms-btn-primary:hover {
-  background: #6e2117;             /* deeper oxblood — like ink soaking in */
-  box-shadow: 0 6px 18px -8px rgba(139, 42, 31, 0.55),
+  background: var(--ink-deep);            /* press into ink */
+  box-shadow: 0 8px 22px -10px rgba(15, 13, 8, 0.55),
               inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 .ms-btn-primary:active {
-  background: #5a1810;
-  box-shadow: 0 2px 6px -2px rgba(139, 42, 31, 0.55);
+  background: #4a1610;
+  box-shadow: 0 2px 6px -2px rgba(110, 33, 23, 0.55);
   transform: translateY(1px);
 }
 
@@ -269,15 +384,16 @@ html { scroll-behavior: smooth; }
 
 /* ─── Tertiary (text link with growing underline + arrow nudge) ─── */
 .ms-btn-link {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--sans);
-  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--serif);
+  font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
+  font-style: italic;
+  text-transform: none;
+  color: var(--oxblood);
   padding: 4px 0 6px;
   position: relative;
   background: transparent; border: 0; cursor: pointer;
-  transition: color 0.22s ease;
+  transition: color var(--dur-micro) var(--ease-micro);
 }
 .ms-btn-link::after {
   content: '';
@@ -365,21 +481,39 @@ html { scroll-behavior: smooth; }
 
 /* ─── Search bar submit ─── */
 .ms-btn-search {
-  background: var(--accent);
+  background: var(--oxblood);
   color: var(--paper);
-  font-family: var(--sans);
-  font-weight: 600;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-style: italic;
   padding: 12px 24px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  text-transform: none;
   border: 0;
   cursor: pointer;
-  transition: background 0.18s ease, letter-spacing 0.22s ease;
+  transition: background var(--dur-micro) var(--ease-micro),
+              letter-spacing var(--dur-micro) var(--ease-micro);
 }
 .ms-btn-search:hover {
-  background: #6e2117;
-  letter-spacing: 0.2em;     /* tracks slightly wider — like reaching forward */
+  background: var(--ink-deep);
+  letter-spacing: 0.04em;
+}
+
+/* ─── Hand-drawn underline ─── used on archival CTAs + active chapter tab */
+.ms-hand-underline {
+  position: relative;
+  display: inline-block;
+}
+.ms-hand-underline::after {
+  content: '';
+  position: absolute; left: -2px; right: -2px; bottom: -4px;
+  height: 5px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 5' preserveAspectRatio='none'><path d='M1 3 Q 20 1 40 3 T 80 3 T 119 2.6' fill='none' stroke='%236e2117' stroke-width='1.4' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 /* ─── "Notify me" + "View all" arrow links (already styled inline, but add nudge) ─── */
@@ -589,17 +723,9 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 16px 40px -12px rgba(0,0,0,0.35);
 }
 
-/* ─── Subtle scroll-reveal for sections ────────────────────────── */
-.ms-reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.3, 1),
-              transform 700ms cubic-bezier(0.2, 0.7, 0.3, 1);
-}
-.ms-reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
+/* (Second .ms-reveal removed — the safe always-visible version at the top
+   of this file is the canonical one. The duplicate here overrode it with
+   opacity: 0 which contradicted the "never trap content" rule.) */
 
 /* Glass treatment for the trust strip's individual cards */
 .ms-trust-card {
