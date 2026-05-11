@@ -460,8 +460,11 @@ export function Hero({ books = [], onAdd, onOpen }) {
     setPeeling(true);
     pageFlip({
       mode,
-      onMid: () => setIndex(computeNextIndex),
-      onEnd: () => setPeeling(false),
+      // Content swap happens AT END of the peel — see lib/pageflip.js.
+      onEnd: () => {
+        setIndex(computeNextIndex);
+        setPeeling(false);
+      },
     });
   }, [peeling, slides.length]);
 

@@ -61,23 +61,22 @@ function tweenGrain(peak, duration) {
   };
 }
 
-export function pageFlip({ mode = 'auto', onMid, onEnd, grainPeak } = {}) {
+export function pageFlip({ mode = 'auto', onEnd, grainPeak } = {}) {
   const opts = { ...DEFAULTS, grainPeak: grainPeak ?? DEFAULTS.grainPeak };
   const duration = mode === 'manual' ? opts.durationManual : opts.durationAuto;
-  // Reduced-motion: skip the peel entirely, just call onMid then onEnd.
+  // Reduced-motion: skip the peel entirely, instant swap.
   if (prefersReducedMotion()) {
-    onMid?.();
     setTimeout(() => onEnd?.(), 20);
     return { cancel() {} };
   }
   const stopGrain = tweenGrain(opts.grainPeak, duration);
-  // Content swap happens at ~50% — the peel reveals the underlying page
-  // by then, so the next chapter has settled before the fold finishes.
-  const midT = setTimeout(() => onMid?.(), duration * 0.5);
+  // Content swap happens AT THE END. The peel shows the "current" page
+  // collapsing away while the "next" page (rendered underneath) becomes
+  // visible. Swapping mid-peel would change the page that's visibly
+  // peeling away — breaks the illusion.
   const endT = setTimeout(() => onEnd?.(), duration);
   return {
     cancel() {
-      clearTimeout(midT);
       clearTimeout(endT);
       stopGrain();
     },
