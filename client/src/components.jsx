@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { assetUrl } from './api.js';
 import { archiveCode } from './lib/archive-code.js';
+import { pageFlip } from './lib/pageflip.js';
+import { DispatchSlip, ArchiveStamp, CatalogCard, ChapterMark } from './world/index.jsx';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Differentiation hooks & primitives
@@ -32,22 +34,65 @@ export function useReveal() {
   return ref;
 }
 
-/** Page-flourish ornament between sections — like a chapter break in a printed book. */
-export function SectionOrnament({ color = 'var(--rule-soft)' }) {
+/** Page-flourish ornament between sections — like a chapter break in a
+ *  printed book. Five variants matching different typographic moments.
+ *    - 'chapter'  (default): diamond + horizontal flourishes
+ *    - 'part'   : double rule with center asterisk
+ *    - 'end'    : three dots, decreasing weight (end of chapter mark)
+ *    - 'leaf'   : symmetric leaf-fronds
+ *    - 'rule'   : a hair-thin rule with a single center dot
+ */
+const ORNAMENTS = {
+  chapter: (color) => (
+    <svg width="120" height="22" viewBox="0 0 240 44" fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round">
+      <path d="M120 12 L130 22 L120 32 L110 22 Z" fill={color} fillOpacity="0.6" />
+      <path d="M0 22 L100 22" />
+      <path d="M84 22 C 90 18, 96 22, 102 22" />
+      <circle cx="92" cy="22" r="1.6" fill={color} />
+      <path d="M140 22 L240 22" />
+      <path d="M138 22 C 144 26, 150 22, 156 22" />
+      <circle cx="148" cy="22" r="1.6" fill={color} />
+    </svg>
+  ),
+  part: (color) => (
+    <svg width="160" height="22" viewBox="0 0 320 44" fill="none" stroke={color} strokeWidth="1" strokeLinecap="round">
+      <path d="M0 18 L140 18" />
+      <path d="M0 26 L140 26" />
+      <text x="160" y="28" fontFamily="serif" fontSize="22" fontStyle="italic" fill={color} textAnchor="middle">*</text>
+      <path d="M180 18 L320 18" />
+      <path d="M180 26 L320 26" />
+    </svg>
+  ),
+  end: (color) => (
+    <svg width="40" height="14" viewBox="0 0 80 28" fill={color}>
+      <circle cx="20" cy="14" r="3" />
+      <circle cx="40" cy="14" r="2" opacity="0.7" />
+      <circle cx="60" cy="14" r="1.2" opacity="0.4" />
+    </svg>
+  ),
+  leaf: (color) => (
+    <svg width="100" height="22" viewBox="0 0 200 44" fill="none" stroke={color} strokeWidth="1.1" strokeLinecap="round">
+      <path d="M0 22 C 30 12, 60 32, 90 22" />
+      <circle cx="100" cy="22" r="2.5" fill={color} />
+      <path d="M110 22 C 140 12, 170 32, 200 22" />
+    </svg>
+  ),
+  rule: (color) => (
+    <svg width="180" height="6" viewBox="0 0 360 12" fill="none" stroke={color} strokeWidth="0.8">
+      <path d="M0 6 L170 6" />
+      <circle cx="180" cy="6" r="1.5" fill={color} stroke="none" />
+      <path d="M190 6 L360 6" />
+    </svg>
+  ),
+};
+export function SectionOrnament({ variant = 'chapter', color = 'var(--rule-soft)' }) {
+  const render = ORNAMENTS[variant] || ORNAMENTS.chapter;
   return (
-    <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'center', padding: '32px 0', background: 'var(--paper)' }}>
-      <svg width="120" height="22" viewBox="0 0 240 44" fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round">
-        {/* Center diamond */}
-        <path d="M120 12 L130 22 L120 32 L110 22 Z" fill={color} fillOpacity="0.6" />
-        {/* Left flourish */}
-        <path d="M0 22 L100 22" />
-        <path d="M84 22 C 90 18, 96 22, 102 22" fill="none" />
-        <circle cx="92" cy="22" r="1.6" fill={color} />
-        {/* Right flourish */}
-        <path d="M140 22 L240 22" />
-        <path d="M138 22 C 144 26, 150 22, 156 22" fill="none" />
-        <circle cx="148" cy="22" r="1.6" fill={color} />
-      </svg>
+    <div aria-hidden="true" style={{
+      display: 'flex', justifyContent: 'center',
+      padding: 'var(--sp-6) 0', background: 'var(--paper)',
+    }}>
+      {render(color)}
     </div>
   );
 }
@@ -180,10 +225,10 @@ export function BookCover({ book, width = 138, height = 196 }) {
       padding: '14px 12px 12px 18px',
     }}>
       <div>
-        <div className="sans" style={{ fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, opacity: 0.85, marginBottom: 8 }}>
+        <div className="sans" style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, opacity: 0.85, marginBottom: 8 }}>
           {book.publisher || 'Medical Press'}
         </div>
-        <div className="serif" style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.1, letterSpacing: '-0.01em', textShadow: '0 1px 0 rgba(0,0,0,0.25)' }}>
+        <div className="serif" style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1, letterSpacing: '-0.01em', textShadow: '0 1px 0 rgba(0,0,0,0.25)' }}>
           {book.title}
         </div>
       </div>
@@ -311,7 +356,7 @@ function SearchBar({ query, setQuery }) {
           type="text" value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          placeholder="Search 25,000 medical books — by title, author, or ISBN"
+          placeholder="Search by title, author, or ISBN"
           aria-label="Search books"
           style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent',
             padding: '0 10px', fontSize: 15, fontFamily: 'var(--serif)', color: 'var(--ink)' }}
@@ -404,32 +449,34 @@ export function Hero({ books = [], onAdd, onOpen }) {
   const timerRef = useRef(null);
   const bannerRef = useRef(null);
 
-  const goPrev = useCallback(() => {
+  // All three turn handlers route through pageFlip() — the engine
+  // centralizes the grain-bend tween, content-swap timing, and
+  // reduced-motion fallback. Mode is 'manual' for user-initiated turns,
+  // 'auto' for the interval-driven ones (currently same duration; the
+  // mode flag is here so callers can express intent and the engine can
+  // diverge later without touching call sites).
+  const turn = useCallback((computeNextIndex, mode = 'manual') => {
     if (peeling || slides.length <= 1) return;
     setPeeling(true);
-    setTimeout(() => {
-      setIndex((i) => (i - 1 + slides.length) % slides.length);
-      setPeeling(false);
-    }, FLIP_DURATION_MS);
+    pageFlip({
+      mode,
+      onMid: () => setIndex(computeNextIndex),
+      onEnd: () => setPeeling(false),
+    });
   }, [peeling, slides.length]);
 
-  const goNext = useCallback(() => {
-    if (peeling || slides.length <= 1) return;
-    setPeeling(true);
-    setTimeout(() => {
-      setIndex((i) => (i + 1) % slides.length);
-      setPeeling(false);
-    }, FLIP_DURATION_MS);
-  }, [peeling, slides.length]);
+  const goPrev = useCallback(() => {
+    turn((i) => (i - 1 + slides.length) % slides.length, 'manual');
+  }, [turn, slides.length]);
+
+  const goNext = useCallback((mode = 'manual') => {
+    turn((i) => (i + 1) % slides.length, mode);
+  }, [turn, slides.length]);
 
   const goTo = useCallback((target) => {
-    if (peeling || target === index || slides.length <= 1) return;
-    setPeeling(true);
-    setTimeout(() => {
-      setIndex(target);
-      setPeeling(false);
-    }, FLIP_DURATION_MS);
-  }, [peeling, index, slides.length]);
+    if (target === index) return;
+    turn(() => target, 'manual');
+  }, [turn, index]);
 
   // First advance fires after a short delay so the user sees the page-peel
   // effect immediately on page load. Subsequent advances use the longer
@@ -442,7 +489,7 @@ export function Hero({ books = [], onAdd, onOpen }) {
     const delay = hasAdvancedOnceRef.current ? SLIDE_INTERVAL_MS : FIRST_ADVANCE_MS;
     timerRef.current = setTimeout(() => {
       hasAdvancedOnceRef.current = true;
-      goNext();
+      goNext('auto');
     }, delay);
     return () => clearTimeout(timerRef.current);
   }, [index, paused, userPaused, goNext, slides.length]);
@@ -609,23 +656,12 @@ function HeroPageContent({ book, onAdd, onOpen, chapter, total }) {
           boxShadow: '0 28px 56px -24px rgba(15,13,8,0.32), 0 8px 16px -8px rgba(15,13,8,0.18)',
           transform: 'rotate(-1.2deg)',
         }} />
-        {/* dispatch slip behind the book */}
-        <div aria-hidden="true" style={{
-          position: 'absolute', left: '8%', bottom: '14%',
-          background: 'var(--paper-2)',
-          border: '1px solid var(--rule-soft)',
-          padding: '10px 14px',
-          transform: 'rotate(-6deg)',
-          boxShadow: '0 8px 18px -10px rgba(15,13,8,0.32)',
-          minWidth: 180,
-        }}>
-          <div className="t-archive" style={{ fontSize: 9 }}>Dispatch slip</div>
-          <div className="t-mono" style={{ fontSize: 10, marginTop: 4, color: 'var(--ink-2)' }}>{code}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 6,
-            fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)',
-            borderTop: '1px dashed var(--rule-hair)', paddingTop: 4 }}>
-            <span>Ahmedabad</span><span>2 w.d.</span>
-          </div>
+        {/* dispatch slip behind the book — world-building artefact */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '8%', bottom: '14%' }}>
+          <DispatchSlip book={book} rotate={-6} compact lines={[
+            ['From',     'Ahmedabad'],
+            ['Dispatch', '2 w.d.'],
+          ]} />
         </div>
 
         <button
@@ -635,7 +671,9 @@ function HeroPageContent({ book, onAdd, onOpen, chapter, total }) {
           <div style={{ transform: 'rotate(1.4deg)', position: 'relative' }}>
             <BookCover book={book} width={232} height={328} />
             <div style={{ position: 'absolute', bottom: -22, right: -42, zIndex: 5 }}>
-              <StampSeal rotate={-12}>{book.edition?.split(' ')[0] || 'New'}<br/>Edition</StampSeal>
+              <ArchiveStamp variant="edition" size={104}>
+                {book.edition?.split(' ')[0] || 'New'}<br/>Edition
+              </ArchiveStamp>
             </div>
           </div>
         </button>
@@ -726,28 +764,23 @@ function toRoman(n) {
 
 export function TrustStrip() {
   const items = [
-    { icon: 'truck',  title: 'Quick Dispatch',   sub: 'Within 2 working days' },
-    { icon: 'shield', title: '100% Original',    sub: 'Authorised reseller' },
-    { icon: 'wallet', title: 'Cash on Delivery', sub: '21,000 PIN codes' },
-    { icon: 'rotate', title: 'Easy Returns',     sub: '7-day no-questions' },
+    { icon: 'truck',  title: 'Quick dispatch',   sub: 'Within 2 working days', code: 'POL · DISPATCH · 01' },
+    { icon: 'shield', title: '100% original',    sub: 'Authorised reseller',   code: 'POL · GENUINE · 02' },
+    { icon: 'wallet', title: 'Cash on delivery', sub: '21,000 PIN codes',      code: 'POL · COD · 03' },
+    { icon: 'rotate', title: 'Easy returns',     sub: '7-day, no questions',   code: 'POL · RETURN · 04' },
   ];
   return (
     <section style={{ background: 'var(--paper-2)', borderBottom: '1px solid var(--rule-soft)' }}>
-      <div className="ms-container ms-trustbar-grid" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 32px',
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
+      <div className="ms-container ms-trustbar-grid" style={{
+        maxWidth: 'var(--container)', margin: '0 auto', padding: '32px 32px',
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18,
+      }}>
         {items.map((it, i) => (
-          <div key={i} className="ms-trustbar-item" style={{ display: 'flex', alignItems: 'center', gap: 14,
-            padding: '8px 24px', borderLeft: i > 0 ? '1px solid var(--rule-soft)' : 'none' }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-              background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={it.icon} size={20} />
-            </div>
-            <div>
-              <div className="serif" style={{ fontSize: 15, fontWeight: 600 }}>{it.title}</div>
-              <div className="serif" style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>{it.sub}</div>
-            </div>
-          </div>
+          <CatalogCard key={i}
+            icon={<Icon name={it.icon} size={20} />}
+            title={it.title}
+            sub={it.sub}
+            code={it.code} />
         ))}
       </div>
     </section>
@@ -865,7 +898,7 @@ export function BookCard({ book, onAdd, onOpen }) {
       {book.tag && (
         <span aria-hidden="true" style={{ position: 'absolute', top: 0, right: 44, zIndex: 3,
           background: book.tag === 'Bestseller' ? 'var(--gold)' : book.tag === 'Just In' ? 'var(--success)' : 'var(--ink)',
-          color: 'var(--paper)', padding: '4px 9px', fontSize: 9.5, fontWeight: 700,
+          color: 'var(--paper)', padding: '4px 9px', fontSize: 10, fontWeight: 700,
           fontFamily: 'var(--sans)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>{book.tag}</span>
       )}
 
@@ -945,9 +978,10 @@ export function Bundles({ bundles, onAdd }) {
               <div className="eyebrow" style={{ color: 'var(--accent)' }}>Combo · {b.books.length} books</div>
               <h3 className="display" style={{ fontSize: 22, fontWeight: 500, marginTop: 8, lineHeight: 1.15 }}>{b.title}</h3>
               <p className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>{b.subtitle}</p>
+              <div className="t-archive" style={{ marginTop: 8, fontSize: 9 }}>{`PMB · BUNDLE · ${(b.id || '').toString().padStart(4, '0').slice(0, 4)}`}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '14px 0', borderTop: '1px dotted var(--rule-soft)', paddingTop: 14 }}>
                 {b.books.map((bk, i) => (
-                  <li key={i} className="serif" style={{ fontSize: 12.5, padding: '4px 0', display: 'flex', gap: 8 }}>
+                  <li key={i} className="serif" style={{ fontSize: 13, padding: '4px 0', display: 'flex', gap: 8 }}>
                     <Icon name="check" size={13} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
                     <span>{bk}</span>
                   </li>
@@ -993,17 +1027,19 @@ export function Forthcoming({ books, onOpen, onNotify }) {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div className="mono" style={{
                   display: 'inline-block', alignSelf: 'flex-start',
-                  background: 'var(--accent)', color: 'var(--paper)', padding: '3px 10px',
-                  fontSize: 9.5, fontWeight: 600, letterSpacing: '0.08em', marginBottom: 10,
+                  background: 'var(--oxblood)', color: 'var(--paper)', padding: '3px 10px',
+                  fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', marginBottom: 10,
+                  fontFeatureSettings: '"tnum","lnum"',
                 }}>
                   ARRIVES {String(b.arrivalDate || '').toUpperCase()}
                 </div>
                 <h3 className="serif" style={{
                   fontWeight: 500, fontSize: 18, lineHeight: 1.18, letterSpacing: '-0.005em', color: 'var(--ink)',
                 }}>{b.title}</h3>
-                <div className="serif" style={{ fontStyle: 'italic', fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
+                <div className="serif" style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                   {b.author} · {b.edition}
                 </div>
+                <div className="t-archive" style={{ marginTop: 6, fontSize: 9 }}>{archiveCode(b)}</div>
                 <div style={{ marginTop: 'auto', paddingTop: 14 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
                     <span className="serif" style={{ fontSize: 15, fontWeight: 600, color: 'var(--accent)' }}>
@@ -1049,7 +1085,8 @@ export function SecondHand({ books, onAdd, onOpen }) {
                   <BookCover book={b} />
                 </div>
                 <h3 className="serif" style={{ fontSize: 14, lineHeight: 1.2, fontWeight: 500, minHeight: 36, overflow: 'hidden' }}>{b.title}</h3>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{b.edition}</div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFeatureSettings: '"tnum","lnum"' }}>{b.edition}</div>
+                <div className="t-archive" style={{ marginTop: 4, fontSize: 9 }}>{archiveCode(b)}</div>
                 <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--paper-2)', borderLeft: `3px solid ${condColor}`, fontSize: 11 }}>
                   <div className="serif" style={{ fontWeight: 600 }}>Sold by {b.seller?.split(',')[0]}</div>
                   <div className="serif" style={{ fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>{b.soldBy}</div>
@@ -1123,7 +1160,7 @@ export function Testimonials({ testimonials }) {
                 {[1,2,3,4,5].map(n => <span key={n} style={{ color: n <= t.rating ? 'var(--gold)' : 'var(--rule-soft)' }}>★</span>)}
                 <span className="serif" style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', marginLeft: 8 }}>{t.date}</span>
               </div>
-              <div className="serif" style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink-2)', marginTop: 12 }}>"{t.text}"</div>
+              <div className="serif" style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-2)', marginTop: 12 }}>"{t.text}"</div>
             </div>
           ))}
         </div>
@@ -1163,7 +1200,7 @@ export function Footer() {
             <span className="display" style={{ fontSize: 28, fontWeight: 600, color: 'var(--paper)' }}>
               Pam Medical Books<span style={{ color: 'var(--accent-soft)' }}>.</span>
             </span>
-            <p className="serif" style={{ fontSize: 13.5, fontStyle: 'italic', marginTop: 14, lineHeight: 1.6, maxWidth: 300, color: 'rgba(246,241,231,0.7)' }}>
+            <p className="serif" style={{ fontSize: 13, fontStyle: 'italic', marginTop: 14, lineHeight: 1.6, maxWidth: 300, color: 'rgba(246,241,231,0.7)' }}>
               Ellis Bridge, Ahmedabad's trusted medical bookseller since 2020. Genuine prints, dispatched in 2 working days across India.
             </p>
             <div className="sans" style={{ marginTop: 22, fontSize: 12, color: 'rgba(246,241,231,0.65)', lineHeight: 1.7 }}>
@@ -1183,13 +1220,13 @@ export function Footer() {
             <div key={col.title}>
               <div className="eyebrow" style={{ color: 'rgba(246,241,231,0.55)', marginBottom: 16 }}>{col.title}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {col.links.map(l => <li key={l} style={{ marginBottom: 9 }}><a href="#" className="serif" style={{ fontSize: 13.5 }}>{l}</a></li>)}
+                {col.links.map(l => <li key={l} style={{ marginBottom: 9 }}><a href="#" className="serif" style={{ fontSize: 13 }}>{l}</a></li>)}
               </ul>
             </div>
           ))}
         </div>
         <div className="serif" style={{ marginTop: 40, padding: '24px 0', borderTop: '1px solid rgba(255,255,255,0.08)',
-          fontSize: 11.5, color: 'rgba(246,241,231,0.5)', lineHeight: 1.8 }}>
+          fontSize: 11, color: 'rgba(246,241,231,0.5)', lineHeight: 1.8 }}>
           <strong className="sans" style={{ color: 'var(--accent-soft)', fontSize: 10, letterSpacing: '0.16em',
             textTransform: 'uppercase', display: 'inline-block', marginRight: 10 }}>Popular Searches:</strong>
           MBBS 1st Year Books · Robbins Pathology · Gray's Anatomy · BD Chaurasia · Park's PSM · Bailey & Love · Harrison's Medicine · NEET-PG Books · Marrow MCQs · Lippincott Biochemistry · Stethoscopes · Dissection Kits
@@ -1228,7 +1265,7 @@ export function Footer() {
         </div>
 
         <div className="t-mono" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, fontSize: 10.5, color: 'rgba(244,237,224,0.5)' }}>
+          display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, fontSize: 10, color: 'rgba(244,237,224,0.5)' }}>
           <div>© 2026 Pam Medical Book House · Ahmedabad · GSTIN 24ABCDE1234F1Z5</div>
           <div style={{ display: 'flex', gap: 12 }}>
             <span>VISA</span><span>UPI</span><span>RUPAY</span><span>NETBANKING</span><span>COD</span>

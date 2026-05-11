@@ -179,15 +179,15 @@ html.js-revealing-on .ms-reveal:not(.is-visible) {
 /* ─── Differentiation anchor #3: page-lift hover on book cards ─── */
 /* Subtle "lift the corner of a paper page" — tilt 0.5deg + lift 3px */
 .ms-card-lift {
-  transition: transform 0.22s cubic-bezier(.2, .8, .2, 1),
-              box-shadow 0.22s ease-out;
+  transition: transform var(--dur-micro) var(--ease-micro),
+              box-shadow var(--dur-micro) ease-out;
   transform: translateY(0) rotate(0deg);
   will-change: transform;
 }
 .ms-card-lift:hover {
   transform: translateY(-4px) rotate(-0.4deg);
-  box-shadow: 0 22px 36px -18px rgba(28, 26, 20, 0.28),
-              0 4px 10px -4px rgba(28, 26, 20, 0.18);
+  box-shadow: 0 22px 36px -18px rgba(15, 13, 8, 0.28),
+              0 4px 10px -4px rgba(15, 13, 8, 0.18);
 }
 
 /* ─── Skeleton with paper grain (instead of gray boxes) ─── */
@@ -561,11 +561,11 @@ html { scroll-behavior: smooth; }
   transition: opacity 200ms ease;
 }
 .is-peeling {
-  animation: ms-page-peel 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+  animation: ms-page-peel 1100ms var(--ease-cinematic) forwards;
 }
 .is-peeling .ms-hero-fold {
   opacity: 1;
-  animation: ms-page-fold 1100ms cubic-bezier(0.55, 0.05, 0.32, 1) forwards;
+  animation: ms-page-fold 1100ms var(--ease-cinematic) forwards;
 }
 @keyframes ms-page-peel {
   0% {
@@ -727,15 +727,78 @@ html { scroll-behavior: smooth; }
    of this file is the canonical one. The duplicate here overrode it with
    opacity: 0 which contradicted the "never trap content" rule.) */
 
-/* Glass treatment for the trust strip's individual cards */
+/* Glass treatment for the trust strip's individual cards.
+   (Kept for backwards compat — TrustStrip now uses .ms-catalog-card.) */
 .ms-trust-card {
-  background: rgba(255,255,255,0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(28,26,20,0.06);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  background: rgba(244,237,224,0.85);
+  border: 1px solid var(--rule-soft);
+  transition: transform var(--dur-micro) var(--ease-micro),
+              box-shadow var(--dur-micro) var(--ease-micro);
 }
 .ms-trust-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px -16px rgba(28,26,20,0.18);
+  box-shadow: 0 12px 24px -16px rgba(15,13,8,0.18);
+}
+
+/* ─── Catalog card hover (TrustStrip replacement) ─── */
+.ms-catalog-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px -16px rgba(15,13,8,0.22);
+}
+
+/* ─── Ink-bleed page-edge vignette ─── felt, not seen.
+   Adds a faint warm-dark gradient at the four edges of paper sections,
+   simulating ink bleed into the page edge from offset printing.
+   Apply to any section you want to feel "printed". */
+.ms-ink-bleed {
+  position: relative;
+}
+.ms-ink-bleed::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 24px -8px rgba(28, 20, 12, 0.07),
+    inset 0 -1px 0 var(--rule-hair);
+}
+
+/* ─── Paper dust ─── three 1px particles drifting slowly. Off by default;
+   opt in with <html class="ms-dust"> or via JS. Each particle uses a
+   different keyframe + delay so motion never feels in-sync.
+   Disabled under prefers-reduced-motion. */
+.ms-dust::before,
+.ms-dust::after,
+.ms-dust .ms-dust-mote {
+  content: '';
+  position: fixed;
+  width: 1.5px; height: 1.5px;
+  background: rgba(244, 237, 224, 0.65);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+}
+.ms-dust::before {
+  top: 20%; left: 25%;
+  animation: ms-dust-drift-a 64s linear infinite;
+}
+.ms-dust::after {
+  top: 65%; left: 75%;
+  animation: ms-dust-drift-b 78s linear infinite;
+  animation-delay: -18s;
+}
+@keyframes ms-dust-drift-a {
+  0%   { transform: translate(0, 0);      opacity: 0; }
+  10%  {                                  opacity: 0.5; }
+  90%  {                                  opacity: 0.4; }
+  100% { transform: translate(60vw, 30vh); opacity: 0; }
+}
+@keyframes ms-dust-drift-b {
+  0%   { transform: translate(0, 0);       opacity: 0; }
+  15%  {                                   opacity: 0.45; }
+  85%  {                                   opacity: 0.4; }
+  100% { transform: translate(-50vw, 25vh); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ms-dust::before, .ms-dust::after { animation: none !important; opacity: 0 !important; }
 }

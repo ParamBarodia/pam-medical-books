@@ -13,7 +13,7 @@ import {
   GenuineBanner, Distributors, Footer, BookCover, Icon,
   SectionOrnament,
 } from './components.jsx';
-import { ProductModal, CartDrawer, CheckoutModal } from './modals.jsx';
+import { ProductModal, CartDrawer, CheckoutModal, NotifyModal } from './modals.jsx';
 
 // /track and /admin are visited by < 1% of traffic — code-split so they
 // don't bloat the storefront's first paint.
@@ -63,6 +63,7 @@ function Storefront() {
   const [productOpen, setProductOpen] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [notifyBook, setNotifyBook] = useState(null);
   const [toast, setToast] = useState(null);
 
   React.useEffect(() => {
@@ -101,7 +102,9 @@ function Storefront() {
   const handleOrderComplete = (orderId) => {
     cart.clear();
     setCheckoutOpen(false);
-    showToast(`Order ${orderId} placed!`, 'teal');
+    // Archive-coded confirmation rather than a generic "placed" toast —
+    // the order id is the user's archive reference for the dispatch.
+    showToast(`Recorded · ${orderId} · we'll dispatch within 2 working days`, 'teal');
   };
   const clearFilters = () => { setQuery(''); setSubmittedQuery(''); setActiveCategory('All'); };
 
@@ -138,9 +141,9 @@ function Storefront() {
               density={5}
               onAdd={handleAdd} onOpen={setProductOpen}
             />
-            <SectionOrnament />
+            <SectionOrnament variant="chapter" />
             <CourseTiles />
-            <SectionOrnament />
+            <SectionOrnament variant="leaf" />
             <BookGrid
               eyebrow="Bestsellers · This Semester" title="What everyone's reading right now."
               marginNote="Chapter II — the books they all need by November"
@@ -148,16 +151,11 @@ function Storefront() {
               density={5}
               onAdd={handleAdd} onOpen={setProductOpen}
             />
-            <SectionOrnament />
+            <SectionOrnament variant="part" />
             <Bundles bundles={bundles.data} onAdd={handleAddBundle} />
             <Forthcoming books={forthcoming.data} onOpen={setProductOpen}
-              onNotify={(b) => {
-                const phone = window.prompt('Phone number to notify when this book arrives?');
-                if (!phone) return;
-                api.notifyWhenBack(b.id, phone).catch(() => {});
-                showToast(`We'll text you when "${b.title.slice(0, 26)}…" arrives`, 'teal');
-              }} />
-            <SectionOrnament />
+              onNotify={(b) => setNotifyBook(b)} />
+            <SectionOrnament variant="rule" />
             <SecondHand books={secondhand.data} onAdd={handleAdd} onOpen={setProductOpen} />
             <GenuineBanner />
             <Testimonials testimonials={testimonials.data} />
@@ -188,6 +186,17 @@ function Storefront() {
           items={cart.items}
           onClose={() => setCheckoutOpen(false)}
           onComplete={handleOrderComplete}
+        />
+      )}
+      {notifyBook && (
+        <NotifyModal
+          book={notifyBook}
+          onClose={() => setNotifyBook(null)}
+          onSubmit={(phone) => {
+            api.notifyWhenBack(notifyBook.id, phone).catch(() => {});
+            showToast(`We'll text you when "${notifyBook.title.slice(0, 26)}…" arrives`, 'teal');
+            setNotifyBook(null);
+          }}
         />
       )}
       {toast && <Toast key={toast.id} text={toast.text} accent={toast.accent} />}

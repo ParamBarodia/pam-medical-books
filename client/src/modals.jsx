@@ -598,3 +598,68 @@ function Field({ label, value, onChange, type = 'text', span = 1, placeholder,
     </label>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// NotifyModal — replaces the window.prompt for "notify me when in stock".
+// Renders as a small paper dialog with archival framing.
+// ────────────────────────────────────────────────────────────────────────────
+export function NotifyModal({ book, onClose, onSubmit }) {
+  const dialogRef = useRef(null);
+  const [phone, setPhone] = useState('');
+  const [err, setErr] = useState('');
+  useDialogFocus(dialogRef, onClose);
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+  const submit = () => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length !== 10) { setErr('Enter a 10-digit Indian mobile number'); return; }
+    onSubmit('+91' + cleaned);
+  };
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.78)',
+      zIndex: 95, animation: 'fade .2s ease-out',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} ref={dialogRef}
+        role="dialog" aria-modal="true" aria-labelledby="notify-title" tabIndex={-1}
+        style={{
+          width: '100%', maxWidth: 440, background: 'var(--paper)',
+          boxShadow: '0 40px 80px -20px rgba(15,13,8,0.5)',
+          padding: '32px 36px 28px', position: 'relative',
+        }}>
+        <div className="t-eyebrow" style={{ color: 'var(--muted)' }}>Pre-order notice</div>
+        <h2 id="notify-title" className="display" style={{
+          fontSize: 22, fontWeight: 500, margin: '6px 0 4px', lineHeight: 1.2, color: 'var(--ink-deep)',
+        }}>Notify me when it arrives</h2>
+        <p className="serif" style={{
+          fontStyle: 'italic', fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.55,
+        }}>
+          We'll send a single SMS the morning <em>{book.title.slice(0, 48)}</em> reaches the warehouse.
+          No spam, no marketing.
+        </p>
+        <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 0,
+          border: '1px solid var(--rule-soft)', background: 'var(--paper-2)' }}>
+          <span className="t-mono" style={{ padding: '14px 12px', color: 'var(--muted)', borderRight: '1px solid var(--rule-soft)' }}>+91</span>
+          <input type="tel" value={phone} autoFocus
+            placeholder="98765 43210" inputMode="numeric"
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            style={{
+              flex: 1, padding: '14px 12px', fontSize: 16, fontFamily: 'var(--serif)',
+              background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)',
+            }} />
+        </div>
+        {err && <div className="serif" style={{ marginTop: 10, fontSize: 12, color: 'var(--oxblood)', fontStyle: 'italic' }}>{err}</div>}
+        <div style={{ marginTop: 22, display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} className="ms-btn-link" style={{ color: 'var(--muted)' }}>Cancel</button>
+          <button onClick={submit} className="ms-btn ms-btn-primary" disabled={phone.length !== 10}>
+            Notify me <span className="ms-arrow">→</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
