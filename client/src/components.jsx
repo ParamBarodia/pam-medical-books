@@ -228,7 +228,7 @@ export function UtilityStrip() {
 export function Ticker() {
   const items = [
     'Flat ₹100 OFF on orders ₹5,000+', 'Flat ₹200 OFF on orders ₹10,000+',
-    'Free shipping above ₹999', 'Same-day dispatch from Ahmedabad',
+    'Free shipping above ₹999', 'Dispatched in 2 working days from Ahmedabad',
     '100% Original — money back otherwise', 'COD available · 21,000 PIN codes',
     'Refer a classmate · Get ₹200 credit',
   ];
@@ -956,7 +956,7 @@ export function GenuineBanner() {
             100% Original Books. <span style={{ color: 'var(--saffron)', fontStyle: 'italic' }}>Money back, otherwise.</span>
           </h2>
           <p className="serif" style={{ fontSize: 15, color: 'rgba(246,241,231,0.78)', marginTop: 16, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.65 }}>
-            Every book is sourced from authorised publishers and dispatched same-day from our Ellis Bridge shop in Ahmedabad, wrapped in butter paper.
+            Every book is sourced from authorised publishers and dispatched within 2 working days from our Ellis Bridge shop in Ahmedabad, wrapped in butter paper.
           </p>
         </div>
       </div>
@@ -1034,7 +1034,7 @@ export function Footer() {
               Pam Medical Books<span style={{ color: 'var(--accent-soft)' }}>.</span>
             </span>
             <p className="serif" style={{ fontSize: 13.5, fontStyle: 'italic', marginTop: 14, lineHeight: 1.6, maxWidth: 300, color: 'rgba(246,241,231,0.7)' }}>
-              Ellis Bridge, Ahmedabad's trusted medical bookseller since 2020. Genuine prints, same-day dispatch across Gujarat.
+              Ellis Bridge, Ahmedabad's trusted medical bookseller since 2020. Genuine prints, dispatched in 2 working days across India.
             </p>
             <div className="sans" style={{ marginTop: 22, fontSize: 12, color: 'rgba(246,241,231,0.65)', lineHeight: 1.7 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>

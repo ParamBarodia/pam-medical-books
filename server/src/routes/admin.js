@@ -12,6 +12,7 @@ import {
   isAdminPhone, createAdminSession, destroyAdminSession,
   ADMIN_COOKIE_NAME, adminCookieOptions, requireAdmin,
 } from '../middleware/admin-auth.js';
+import { ORDER_STATUSES, canTransition, allowedNext, isTerminal } from '../lib/order-status.js';
 import { fetchBookMetadata } from '../../../scripts/lib/metadata.js';
 
 const r = Router();
@@ -109,12 +110,19 @@ r.get('/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 r.patch('/admin/orders/:id', requireAdmin, async (req, res) => {
-  const allowed = ['placed', 'paid', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
   const { status } = req.body || {};
-  if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
+  if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'not found' });
   const previous = order.status;
+  if (!canTransition(previous, status)) {
+    return res.status(409).json({
+      error: `cannot transition from ${previous} to ${status}`,
+      from: previous,
+      allowed: allowedNext(previous),
+    });
+  }
+  if (previous === status) return res.json({ ok: true, status });
   db.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?').run(status, Date.now(), req.params.id);
 
   // Side effects on key transitions
@@ -131,7 +139,12 @@ r.post('/admin/orders/:id/refund', requireAdmin, async (req, res, next) => {
   try {
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'not found' });
-    if (order.status === 'refunded') return res.status(400).json({ error: 'already refunded' });
+    if (!canTransition(order.status, 'refunded')) {
+      return res.status(409).json({
+        error: `cannot refund an order in status "${order.status}"`,
+        from: order.status,
+      });
+    }
     if (!order.razorpay_payment_id) return res.status(400).json({ error: 'no payment to refund' });
 
     const refundAmount = req.body?.amount || order.total;

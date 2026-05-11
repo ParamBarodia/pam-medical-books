@@ -4,35 +4,42 @@
 medshelf/
 ├── client/           # Vite + React frontend (port 5173)
 │   └── src/
-│       ├── api.js          # local Express API client (cart/orders/auth)
+│       ├── api.js          # local Express API client
 │       ├── sanity.js       # Sanity catalog client + image URL builder
-│       ├── hooks.js        # useAuth, useCart, useWishlist, useFetch
+│       ├── hooks.js        # useCart, useWishlist, useFetch
 │       ├── components.jsx  # Hero, BookCard, sections (paper-warm design)
-│       ├── modals.jsx      # Product / Auth / Cart / Checkout modals
-│       ├── App.jsx         # composition + dual-mode catalog (Sanity OR local)
+│       ├── modals.jsx      # Product / Cart / Checkout modals (phone-OTP, no accounts)
+│       ├── admin/AdminApp.jsx  # lazy-loaded admin SPA at /admin
+│       ├── track.jsx       # lazy-loaded order-tracking page at /track
+│       ├── App.jsx         # composition + path-based routing
 │       └── styles/global.css
 │
-├── server/           # Express + node:sqlite (or Postgres) on port 4000
+├── server/           # Express + node:sqlite on port 4000
 │   └── src/
 │       ├── server.js
-│       ├── auth.js                JWT + bcrypt
+│       ├── logger.js              pino structured logging
+│       ├── middleware/
+│       │   └── admin-auth.js      admin phone-OTP + 30-day httpOnly cookie
+│       ├── lib/
+│       │   └── order-status.js    order status state machine
 │       ├── db/
-│       │   ├── index.js           node:sqlite wrapper (local dev)
-│       │   ├── pool.js            Postgres pool (production, via DATABASE_URL)
-│       │   ├── schema.js          SQLite DDL
-│       │   ├── schema.sql         Postgres DDL
-│       │   └── seed.js            sample catalog
+│       │   ├── index.js           node:sqlite wrapper
+│       │   ├── schema.js          DDL
+│       │   ├── seed.js            sample catalog
+│       │   └── enrich-from-isbn.js
 │       ├── services/
 │       │   ├── razorpay.js        real Razorpay + signature verification
 │       │   ├── shiprocket.js      courier integration with token caching
+│       │   ├── otp.js             OTP issuance/verification (MSG91)
+│       │   ├── sms.js / whatsapp.js / notify.js  notification fallback chain
 │       │   ├── email.js           Resend with HTML templates
 │       │   └── sanity.js          stock decrement on paid orders
+│       ├── jobs/                  scheduled tasks (daily cleanup, etc.)
 │       └── routes/
 │           ├── products.js        catalog (read)
-│           ├── auth.js            signup / login / me
-│           ├── cart.js            cart + wishlist
+│           ├── customer.js        repeat-customer masked-hint lookup
 │           ├── orders.js          checkout + verify + post-payment chain
-│           ├── admin.js           admin dashboard endpoints + low-stock job
+│           ├── admin.js           admin dashboard endpoints
 │           └── webhooks/
 │               ├── razorpay.js    HMAC-verified, idempotent
 │               └── shiprocket.js  status sync
@@ -89,7 +96,7 @@ returns fake tracking, emails print to server console).
 
 ## Deploying the frontend to Vercel
 
-The Vite build is configured for Vercel via `vercel.json` at the repo root. Backend stays on its own host (Render / Railway / Fly — anything with a persistent disk for SQLite, or migrate to the included Postgres adapter at `server/src/db/pool.js`).
+The Vite build is configured for Vercel via `vercel.json` at the repo root. Backend stays on its own host (Render / Railway / Fly — anything with a persistent disk for SQLite). Postgres migration is on the to-do list when traffic outgrows SQLite.
 
 ### 1. Deploy the API somewhere first
 Pick any host that gives you a public HTTPS URL — e.g. Render's free web service:
