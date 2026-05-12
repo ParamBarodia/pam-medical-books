@@ -524,93 +524,106 @@ html { scroll-behavior: smooth; }
 .ms-arrow-link:hover .ms-arrow { transform: translateX(4px); }
 .ms-arrow-link:hover { color: #6e2117; }
 
-/* ─── Hero page-peel carousel ─────────────────────────────────────── */
-/* Two layers: "next" sits beneath, "current" on top. When advancing, the
-   current's clip-path animates from a full rectangle to a triangle pinched
-   at the top-left, giving the appearance that someone grabbed the bottom-
-   right corner and peeled the page diagonally. A pseudo-element drops a
-   shadow gradient along the fold line for depth. */
-.ms-hero-stack {
+/* ─── Hero page-flip carousel ─────────────────────────────────────────
+   Two layers, both absolutely positioned. The "next" page sits beneath
+   the "current" page. When advancing, the current page rotates around
+   its LEFT spine in 3D (rotateY -180°), like turning a book page from
+   right to left. The .ms-hero-banner uses perspective to make the
+   rotation feel physical — closer corner appears larger, paper catches
+   light along the fold. A dark vignette + warm highlight layered onto
+   the page-back simulates the underside.
+   We keep clip-path on the current page as a SECOND layer of motion in
+   case 3D transforms are throttled in some browser; collapses bottom-
+   right corner inward as the rotation progresses. */
+/* ─── Hero page-flip — proper two-faced book page ─────────────────────
+   The hero is a single 3D-positioned element (.ms-hero-flipper) with TWO
+   faces inside it:
+     • .ms-hero-face-front  → the current chapter
+     • .ms-hero-face-back   → the next chapter, pre-rotated 180° in Y so
+                              it appears un-mirrored once the flipper
+                              swings around.
+   When .is-peeling is added, the flipper rotates rotateY 0 → -180°,
+   hinged at its LEFT spine, like turning a real book page from right
+   to left. backface-visibility hides each face when it's not facing
+   the viewer, so the user always sees exactly one side. */
+.ms-hero-banner {
+  perspective: 1800px;
+  perspective-origin: 0% 50%;
+}
+.ms-hero-flipper {
   position: absolute;
   inset: 0;
+  transform-origin: 0% 50%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  will-change: transform;
 }
-.ms-hero-stack-next {
+.ms-hero-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.ms-hero-face-front {
+  z-index: 2;
+  /* Faint shadow on the front so it reads as sitting on top of the next page. */
+  box-shadow: 6px 0 22px -10px rgba(15, 13, 8, 0.18);
+}
+.ms-hero-face-back {
+  /* Pre-rotated so that when the flipper hits -180° the back face is
+     un-mirrored and reads correctly. */
+  transform: rotateY(180deg);
   z-index: 1;
 }
-.ms-hero-stack-current {
-  z-index: 2;
-  /* Default: page lies flat, nothing clipped */
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-  transform-origin: 0 0;
-  will-change: clip-path, transform, box-shadow, filter;
-}
-/* The fold shadow — sits flush with the page, only visible when peeling */
+/* Fold shadow — a vertical vignette along the spine that intensifies
+   while the page is mid-turn. Sits over the flipper, pointer-events: none. */
 .ms-hero-fold {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    /* Vertical highlight running along the curl spine */
-    linear-gradient(to right, transparent 0%, transparent 55%, rgba(255,255,255,0.55) 75%, transparent 90%),
-    /* Dark gradient that simulates the underside of the curling paper */
-    linear-gradient(to top right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 30%, transparent 55%);
+    linear-gradient(90deg,
+      rgba(15, 13, 8, 0.45) 0%,
+      rgba(15, 13, 8, 0.18) 6%,
+      rgba(255, 255, 255, 0.22) 14%,
+      transparent 28%,
+      transparent 100%);
   opacity: 0;
-  /* Triangle that sits inside the peeled region. Its clip is the inverse of
-     the page clip, so it appears in the area being "lifted". */
-  clip-path: polygon(100% 100%, 100% 100%, 100% 100%);
-  transition: opacity 200ms ease;
+  transition: opacity 220ms ease;
+  z-index: 4;
 }
-.is-peeling {
-  animation: ms-page-peel 1100ms var(--ease-cinematic) forwards;
+.is-peeling { pointer-events: none; }
+.is-peeling .ms-hero-flipper {
+  animation: ms-page-flip 1100ms var(--ease-cinematic) forwards;
 }
 .is-peeling .ms-hero-fold {
   opacity: 1;
-  animation: ms-page-fold 1100ms var(--ease-cinematic) forwards;
+  animation: ms-page-fold-opacity 1100ms var(--ease-cinematic) forwards;
 }
-@keyframes ms-page-peel {
-  0% {
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-    filter: brightness(1) drop-shadow(0 0 0 rgba(0,0,0,0));
-  }
-  18% {
-    clip-path: polygon(0 0, 100% 0, 95% 100%, 0 100%);
-    filter: brightness(1) drop-shadow(-4px 6px 14px rgba(0,0,0,0.18));
-  }
-  45% {
-    /* Mid-peel — the right edge has lifted, exposing the bottom-right corner */
-    clip-path: polygon(0 0, 70% 0, 25% 100%, 0 100%);
-    filter: brightness(0.95) drop-shadow(-12px 12px 28px rgba(0,0,0,0.32));
-  }
-  75% {
-    clip-path: polygon(0 0, 30% 0, 0 60%, 0 100%);
-    filter: brightness(0.92) drop-shadow(-22px 14px 36px rgba(0,0,0,0.4));
-  }
-  100% {
-    clip-path: polygon(0 0, 0 0, 0 0, 0 0);
-    filter: brightness(0.9) drop-shadow(-30px 18px 44px rgba(0,0,0,0.45));
-  }
+@keyframes ms-page-flip {
+  0%   { transform: rotateY(0deg)    translateZ(0); }
+  18%  { transform: rotateY(-14deg)  translateZ(12px); }
+  50%  { transform: rotateY(-90deg)  translateZ(28px); }
+  82%  { transform: rotateY(-166deg) translateZ(12px); }
+  100% { transform: rotateY(-180deg) translateZ(0); }
 }
-@keyframes ms-page-fold {
-  0% {
-    clip-path: polygon(100% 100%, 100% 100%, 100% 100%);
-    opacity: 0;
+@keyframes ms-page-fold-opacity {
+  0%   { opacity: 0;    }
+  18%  { opacity: 0.55; }
+  50%  { opacity: 0.95; }
+  82%  { opacity: 0.55; }
+  100% { opacity: 0;    }
+}
+/* Reduced-motion users still see SOMETHING — a crossfade rather than a hard
+   instant swap. Drops the 3D rotation, keeps a 300ms fade-out. */
+@media (prefers-reduced-motion: reduce) {
+  .is-peeling {
+    animation: ms-page-fade 300ms ease forwards;
   }
-  20% {
-    clip-path: polygon(100% 0, 100% 100%, 92% 100%);
-    opacity: 0.7;
-  }
-  50% {
-    /* The fold occupies the diagonal strip just inside the page edge */
-    clip-path: polygon(70% 0, 100% 0, 100% 100%, 25% 100%);
-    opacity: 0.85;
-  }
-  80% {
-    clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 60%);
-    opacity: 0.55;
-  }
-  100% {
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-    opacity: 0;
+  .is-peeling .ms-hero-fold { animation: none !important; opacity: 0 !important; }
+  @keyframes ms-page-fade {
+    from { opacity: 1; }
+    to   { opacity: 0; }
   }
 }
 

@@ -505,7 +505,7 @@ export function Hero({ books = [], onAdd, onOpen }) {
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
         <div
           ref={bannerRef}
-          className="ms-hero-banner"
+          className={`ms-hero-banner ${peeling ? 'is-peeling' : ''}`}
           role="region"
           aria-roledescription="carousel"
           aria-label="Featured medical books"
@@ -526,18 +526,21 @@ export function Hero({ books = [], onAdd, onOpen }) {
             overflow: 'hidden',
           }}
         >
-          {/* The "next" page sits beneath the current one, full bleed */}
-          <div className="ms-hero-stack ms-hero-stack-next" aria-hidden="true">
-            <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen}
-              chapter={((index + 1) % slides.length) + 1} total={slides.length} />
+          {/* Two-faced flipper. Front face shows the current chapter; back
+              face shows the next chapter pre-rotated 180° so it reads correctly
+              once the flipper swings around. When .is-peeling is on the
+              banner the flipper rotates 0 → -180°, like turning a book page. */}
+          <div className="ms-hero-flipper">
+            <div className="ms-hero-face ms-hero-face-front">
+              <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen}
+                chapter={index + 1} total={slides.length} />
+            </div>
+            <div className="ms-hero-face ms-hero-face-back" aria-hidden="true">
+              <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen}
+                chapter={((index + 1) % slides.length) + 1} total={slides.length} />
+            </div>
           </div>
-          {/* The "current" page on top — clip-path animates it peeling away */}
-          <div className={`ms-hero-stack ms-hero-stack-current ${peeling ? 'is-peeling' : ''}`}>
-            <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen}
-              chapter={index + 1} total={slides.length} />
-            {/* The fold-shadow pseudo overlay — also clipped, gives the bent-paper highlight */}
-            <div className="ms-hero-fold" aria-hidden="true" />
-          </div>
+          <div className="ms-hero-fold" aria-hidden="true" />
 
           {slides.length > 1 && (
             <>
