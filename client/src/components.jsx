@@ -462,10 +462,8 @@ export function Hero({ books = [], onAdd, onOpen }) {
 
   const goNext = useCallback(() => send({ type: 'pmb:next' }), [send]);
   const goPrev = useCallback(() => send({ type: 'pmb:prev' }), [send]);
-  // The book is a 12-page spread: cover (1), chapter I (2-3), II (4-5),
-  // III (6-7), IV (8-9), V (10-11), back cover (12). Roman numeral nav
-  // jumps to the LEFT page of the requested chapter spread.
-  const goTo   = useCallback((target) => send({ type: 'pmb:goto', page: 2 + target * 2 }), [send]);
+  // Single-page Turn.js — each chapter is page N+1 (1-indexed).
+  const goTo   = useCallback((target) => send({ type: 'pmb:goto', page: target + 1 }), [send]);
 
   // Listen for messages FROM the iframe
   useEffect(() => {
@@ -488,9 +486,7 @@ export function Hero({ books = [], onAdd, onOpen }) {
     return () => clearInterval(id);
   }, [iframeReady, paused, userPaused, send]);
 
-  // Spread book: pages 2-3 = chapter I (index 0), 4-5 = II (1), etc.
-  // Cover (page 1) and back cover (page 12) clamp to nearest chapter.
-  const index = Math.max(0, Math.min(NUM_CHAPTERS - 1, Math.floor((page - 2) / 2)));
+  const index = page - 1;
 
   return (
     <section style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule)', padding: '24px 32px' }}>
