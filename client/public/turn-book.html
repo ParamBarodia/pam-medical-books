@@ -22,7 +22,7 @@
   html, body {
     margin: 0; padding: 0;
     height: 100%; width: 100%;
-    background: var(--paper-deep);
+    background: #2a1f12;       /* dark table the book rests on */
     font-family: "Source Serif 4", Georgia, serif;
     color: var(--ink);
     overflow: hidden;
@@ -32,49 +32,85 @@
     display: flex; align-items: center; justify-content: center;
   }
   #book { background: var(--paper-deep); }
-  /* Each .page is a single full-bleed chapter. Turn.js applies the
-     corner-curl flip; we just give it our editorial composition. */
   .page {
     background: var(--paper-deep);
     overflow: hidden;
+    color: var(--ink);
   }
-  .page-inner {
-    width: 100%; height: 100%;
-    padding: 56px 64px 80px;
-    position: relative;
-    display: grid;
-    grid-template-columns: 0.95fr 1.05fr;
-    gap: 56px;
-    align-items: center;
+  /* ─── Hard covers ─── */
+  .hard {
     background:
-      radial-gradient(ellipse at 25% 30%, rgba(216,201,174,0.55) 0%, transparent 55%),
-      radial-gradient(ellipse at 80% 80%, rgba(15,13,8,0.10) 0%, transparent 50%),
-      var(--paper-deep);
+      radial-gradient(ellipse at 30% 30%, rgba(255,220,160,0.08) 0%, transparent 60%),
+      linear-gradient(155deg, #5a1a12 0%, #4a1410 40%, #2c0d0a 100%);
+    color: #f0d8a0;
+    border: 1px solid rgba(0,0,0,0.4);
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
   }
-  /* Top-left chapter marker */
-  .chapter-mark {
-    position: absolute; top: 28px; left: 56px;
-    display: flex; flex-direction: column; gap: 4px;
+  .hard-inner {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 56px;
+    position: relative;
   }
-  .chapter-mark .label {
+  .hard-inner::before {
+    content: '';
+    position: absolute; inset: 14px;
+    border: 1px solid rgba(216, 175, 107, 0.5);
+    pointer-events: none;
+  }
+  .hard-inner::after {
+    content: '';
+    position: absolute; inset: 22px;
+    border-top: 1px solid rgba(216, 175, 107, 0.3);
+    border-bottom: 1px solid rgba(216, 175, 107, 0.3);
+    pointer-events: none;
+  }
+  .hard-eyebrow {
     font-family: "Inter", sans-serif;
     font-size: 11px; font-weight: 600;
     letter-spacing: 0.32em; text-transform: uppercase;
-    color: var(--muted);
+    color: rgba(216, 175, 107, 0.85);
+    margin-bottom: 16px;
   }
-  .chapter-mark .roman {
+  .hard-rule { width: 60px; height: 1px; background: rgba(216, 175, 107, 0.5); margin: 22px auto; }
+  .hard-title {
     font-family: "Fraunces", serif;
-    font-style: italic; font-size: 56px;
-    color: var(--oxblood); line-height: 1; font-weight: 500;
+    font-style: italic; font-weight: 500;
+    font-size: 36px; line-height: 1.05;
+    text-align: center; color: #f0d8a0;
+    letter-spacing: -0.01em;
   }
-  /* LEFT — still-life composition */
-  .compose {
+  .hard-sub {
+    margin-top: 12px;
+    font-family: "Fraunces", serif;
+    font-style: italic; font-size: 14px;
+    color: rgba(216, 175, 107, 0.7);
+    text-align: center;
+  }
+  .hard-stamp {
+    margin-top: auto;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.16em;
+    color: rgba(216, 175, 107, 0.55);
+  }
+  /* ─── Inner pages ─── shared background */
+  .inner {
+    width: 100%; height: 100%;
+    padding: 40px 44px 56px;
     position: relative;
+    background:
+      radial-gradient(ellipse at 30% 30%, rgba(216,201,174,0.55) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 80%, rgba(15,13,8,0.08) 0%, transparent 50%),
+      var(--paper-deep);
+  }
+  /* LEFT page — still-life composition. Goes on the LEFT side of each
+     chapter spread (even-numbered Turn.js pages). */
+  .inner-image {
     display: flex; align-items: center; justify-content: center;
-    padding-top: 24px;
   }
   .paper-card {
-    position: absolute; inset: 8% 18% 8% 18%;
+    position: absolute; inset: 12% 16% 12% 16%;
     background: var(--paper);
     box-shadow: 0 28px 56px -24px rgba(15,13,8,0.32),
                 0 8px 16px -8px rgba(15,13,8,0.18);
@@ -110,11 +146,10 @@
   }
   .cover .e {
     font-family: "JetBrains Mono", monospace;
-    margin-top: 3px;
-    font-size: 9px; opacity: 0.8;
+    margin-top: 3px; font-size: 9px; opacity: 0.8;
   }
   .dispatch {
-    position: absolute; left: 8%; bottom: 14%;
+    position: absolute; left: 10%; bottom: 18%;
     background: var(--paper-2);
     border: 1px solid var(--rule-soft);
     padding: 10px 14px;
@@ -123,6 +158,7 @@
     min-width: 180px;
     font-family: "JetBrains Mono", monospace;
     color: var(--ink-2);
+    z-index: 3;
   }
   .dispatch .l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
   .dispatch .c { font-size: 10px; margin-top: 4px; }
@@ -132,68 +168,77 @@
     border-top: 1px dashed var(--rule-hair);
     font-size: 9px; color: var(--muted);
   }
-  /* RIGHT — editorial copy */
-  .copy { position: relative; max-width: 560px; }
-  .copy .eyebrow {
+  /* RIGHT page — editorial copy. Goes on the RIGHT side of each chapter
+     spread (odd-numbered Turn.js pages). This is the page that visibly
+     curls when the user advances. */
+  .inner-text {
+    padding-top: 32px;
+  }
+  .chapter-mark {
+    margin-bottom: 28px;
+  }
+  .chapter-mark .label {
+    font-family: "Inter", sans-serif;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .chapter-mark .roman {
+    font-family: "Fraunces", serif;
+    font-style: italic; font-size: 56px;
+    color: var(--oxblood); line-height: 1; font-weight: 500;
+    margin-top: 4px;
+  }
+  .eyebrow {
     font-family: "Inter", sans-serif;
     font-size: 11px; font-weight: 600;
     letter-spacing: 0.28em; text-transform: uppercase;
     color: var(--oxblood);
   }
-  .copy .title {
+  .title {
     font-family: "Fraunces", serif;
-    font-weight: 500; font-size: 44px;
-    line-height: 1.04; letter-spacing: -0.022em;
-    color: var(--ink-deep); margin: 16px 0 0;
+    font-weight: 500; font-size: 36px;
+    line-height: 1.05; letter-spacing: -0.022em;
+    color: var(--ink-deep); margin: 14px 0 0;
   }
-  .copy .rule {
-    height: 1px; width: 64px; background: var(--oxblood);
-    opacity: 0.85; margin: 20px 0;
-  }
-  .copy .byline {
-    font-size: 14px; color: var(--ink-2);
-    font-style: italic;
-  }
-  .copy .byline strong {
-    color: var(--ink-deep); font-style: normal; font-weight: 500;
-  }
-  .copy .annot {
-    margin-top: 22px;
+  .rule { height: 1px; width: 56px; background: var(--oxblood); opacity: 0.85; margin: 18px 0; }
+  .byline { font-size: 14px; color: var(--ink-2); font-style: italic; }
+  .byline strong { color: var(--ink-deep); font-style: normal; font-weight: 500; }
+  .annot {
+    margin-top: 20px;
     font-family: "Fraunces", serif;
-    font-style: italic;
-    color: var(--ink-2);
-    font-size: 15px; line-height: 1.65;
+    font-style: italic; color: var(--ink-2);
+    font-size: 14px; line-height: 1.6;
     max-width: 480px;
   }
-  .copy .price-row {
-    margin-top: 28px; display: flex; align-items: baseline; gap: 14px;
+  .price-row {
+    margin-top: 24px; display: flex; align-items: baseline; gap: 14px;
   }
-  .copy .price-row .price {
+  .price-row .price {
     font-family: "Fraunces", serif; font-weight: 600;
-    font-size: 28px; color: var(--oxblood);
+    font-size: 26px; color: var(--oxblood);
     font-feature-settings: "tnum","lnum";
   }
-  .copy .price-row .mrp {
+  .price-row .mrp {
     font-family: "JetBrains Mono", monospace;
     color: var(--muted); text-decoration: line-through;
     font-size: 12px;
   }
-  .copy .price-row .save {
+  .price-row .save {
     font-family: "Fraunces", serif; font-style: italic;
     font-size: 12px; color: var(--muted);
   }
-  /* Bottom archive footer */
   .archive-footer {
-    position: absolute; left: 64px; right: 64px; bottom: 28px;
+    position: absolute; left: 44px; right: 44px; bottom: 18px;
     display: flex; justify-content: space-between; align-items: center;
-    border-top: 1px solid var(--rule-hair); padding-top: 14px;
+    border-top: 1px solid var(--rule-hair); padding-top: 12px;
     font-family: "JetBrains Mono", monospace;
-    font-size: 10px; color: var(--muted);
+    font-size: 9px; color: var(--muted);
     letter-spacing: 0.12em; text-transform: uppercase;
   }
   .archive-footer .folio {
     font-family: "Fraunces", serif; font-style: italic;
-    font-size: 12px; letter-spacing: 0; text-transform: none;
+    font-size: 11px; letter-spacing: 0; text-transform: none;
   }
   /* Cover colour variants */
   .cover.c-oxblood { background: #7a1e2b; }
@@ -209,219 +254,243 @@
   <div id="book-wrap">
     <div id="book">
 
-      <!-- Chapter I — Robbins -->
+      <!-- Page 1: FRONT HARD COVER -->
+      <div class="hard">
+        <div class="hard-inner">
+          <div class="hard-eyebrow">The Archive</div>
+          <div class="hard-rule"></div>
+          <div class="hard-title">Pam Medical<br/>Books</div>
+          <div class="hard-rule"></div>
+          <div class="hard-sub">Ahmedabad's medical bookseller<br/>since 2020</div>
+          <div class="hard-stamp">VOL. VII · 2026</div>
+        </div>
+      </div>
+
+      <!-- ─── Chapter I — Robbins ─── pages 2 (image) + 3 (text) -->
       <div class="page">
-        <div class="page-inner">
+        <div class="inner inner-image">
+          <div class="paper-card"></div>
+          <div class="cover c-oxblood">
+            <div class="pub">Elsevier</div>
+            <div class="t">Robbins Basic Pathology</div>
+            <div class="a">Vinay Kumar</div>
+            <div class="e">11th Ed</div>
+          </div>
+          <div class="dispatch">
+            <div class="l">Dispatch slip</div>
+            <div class="c">PMB · MBBS · 2024 · 0042</div>
+            <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="inner inner-text">
           <div class="chapter-mark">
-            <span class="label">Chapter</span>
-            <span class="roman">I</span>
+            <div class="label">Chapter</div>
+            <div class="roman">I</div>
           </div>
-          <div class="compose">
-            <div class="paper-card"></div>
-            <div class="cover c-oxblood">
-              <div class="pub">Elsevier</div>
-              <div class="t">Robbins Basic Pathology</div>
-              <div class="a">Vinay Kumar</div>
-              <div class="e">11th Ed</div>
-            </div>
-            <div class="dispatch">
-              <div class="l">Dispatch slip</div>
-              <div class="c">PMB · MBBS · 2024 · 0042</div>
-              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
-            </div>
-          </div>
-          <div class="copy">
-            <div class="eyebrow">Featured Acquisitions</div>
-            <h1 class="title">Robbins Basic Pathology</h1>
-            <div class="rule"></div>
-            <div class="byline">By <strong>Vinay Kumar</strong> · 11th Ed · Elsevier</div>
-            <div class="annot">The pathology classic, rewritten for the
-              short-on-time MBBS reader — high-yield mechanisms,
-              colour-plate histology, and the same Vinay Kumar voice.</div>
-            <div class="price-row">
-              <span class="price">₹1,799</span>
-              <span class="mrp">₹2,295</span>
-              <span class="save">saving ₹496 (22%)</span>
-            </div>
+          <div class="eyebrow">Featured Acquisition</div>
+          <h1 class="title">Robbins Basic Pathology</h1>
+          <div class="rule"></div>
+          <div class="byline">By <strong>Vinay Kumar</strong> · 11th Ed · Elsevier</div>
+          <div class="annot">The pathology classic, rewritten for the
+            short-on-time MBBS reader — high-yield mechanisms, colour-
+            plate histology, and the same Vinay Kumar voice.</div>
+          <div class="price-row">
+            <span class="price">₹1,799</span>
+            <span class="mrp">₹2,295</span>
+            <span class="save">saving ₹496 (22%)</span>
           </div>
           <div class="archive-footer">
             <span>PMB · MBBS · 2024 · 0042</span>
             <span class="folio">Vol. VII · Folio 01 of 05</span>
-            <span>Pam Medical Books · Ahmedabad</span>
+            <span>Pam · Ahmedabad</span>
           </div>
         </div>
       </div>
 
-      <!-- Chapter II — Harrison's -->
+      <!-- ─── Chapter II — Harrison's ─── -->
       <div class="page">
-        <div class="page-inner">
+        <div class="inner inner-image">
+          <div class="paper-card"></div>
+          <div class="cover c-forest">
+            <div class="pub">McGraw-Hill</div>
+            <div class="t">Harrison's Principles of Internal Medicine</div>
+            <div class="a">Joseph Loscalzo</div>
+            <div class="e">21st Ed</div>
+          </div>
+          <div class="dispatch">
+            <div class="l">Dispatch slip</div>
+            <div class="c">PMB · MBBS · 2024 · 0103</div>
+            <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="inner inner-text">
           <div class="chapter-mark">
-            <span class="label">Chapter</span>
-            <span class="roman">II</span>
+            <div class="label">Chapter</div>
+            <div class="roman">II</div>
           </div>
-          <div class="compose">
-            <div class="paper-card"></div>
-            <div class="cover c-forest">
-              <div class="pub">McGraw-Hill</div>
-              <div class="t">Harrison's Principles of Internal Medicine</div>
-              <div class="a">Joseph Loscalzo</div>
-              <div class="e">21st Ed</div>
-            </div>
-            <div class="dispatch">
-              <div class="l">Dispatch slip</div>
-              <div class="c">PMB · MBBS · 2024 · 0103</div>
-              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
-            </div>
-          </div>
-          <div class="copy">
-            <div class="eyebrow">Featured Acquisitions</div>
-            <h1 class="title">Harrison's Internal Medicine</h1>
-            <div class="rule"></div>
-            <div class="byline">By <strong>Joseph Loscalzo</strong> · 21st Ed · McGraw-Hill</div>
-            <div class="annot">The two-volume reference every resident
-              keeps within arm's reach — updated 2024 with new sections
-              on long-COVID and AI-assisted differentials.</div>
-            <div class="price-row">
-              <span class="price">₹7,499</span>
-              <span class="mrp">₹9,999</span>
-              <span class="save">saving ₹2,500 (25%)</span>
-            </div>
+          <div class="eyebrow">Featured Acquisition</div>
+          <h1 class="title">Harrison's Internal Medicine</h1>
+          <div class="rule"></div>
+          <div class="byline">By <strong>Joseph Loscalzo</strong> · 21st Ed · McGraw-Hill</div>
+          <div class="annot">The two-volume reference every resident
+            keeps within arm's reach — updated 2024 with new sections
+            on long-COVID and AI-assisted differentials.</div>
+          <div class="price-row">
+            <span class="price">₹7,499</span>
+            <span class="mrp">₹9,999</span>
+            <span class="save">saving ₹2,500 (25%)</span>
           </div>
           <div class="archive-footer">
             <span>PMB · MBBS · 2024 · 0103</span>
             <span class="folio">Vol. VII · Folio 02 of 05</span>
-            <span>Pam Medical Books · Ahmedabad</span>
+            <span>Pam · Ahmedabad</span>
           </div>
         </div>
       </div>
 
-      <!-- Chapter III — BD Chaurasia -->
+      <!-- ─── Chapter III — BD Chaurasia ─── -->
       <div class="page">
-        <div class="page-inner">
+        <div class="inner inner-image">
+          <div class="paper-card"></div>
+          <div class="cover c-ink">
+            <div class="pub">CBS Publishers</div>
+            <div class="t">BD Chaurasia's Human Anatomy</div>
+            <div class="a">BD Chaurasia</div>
+            <div class="e">9th Ed</div>
+          </div>
+          <div class="dispatch">
+            <div class="l">Dispatch slip</div>
+            <div class="c">PMB · MBBS · 2024 · 0007</div>
+            <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="inner inner-text">
           <div class="chapter-mark">
-            <span class="label">Chapter</span>
-            <span class="roman">III</span>
+            <div class="label">Chapter</div>
+            <div class="roman">III</div>
           </div>
-          <div class="compose">
-            <div class="paper-card"></div>
-            <div class="cover c-ink">
-              <div class="pub">CBS Publishers</div>
-              <div class="t">BD Chaurasia's Human Anatomy</div>
-              <div class="a">BD Chaurasia</div>
-              <div class="e">9th Ed</div>
-            </div>
-            <div class="dispatch">
-              <div class="l">Dispatch slip</div>
-              <div class="c">PMB · MBBS · 2024 · 0007</div>
-              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
-            </div>
-          </div>
-          <div class="copy">
-            <div class="eyebrow">Featured Acquisitions</div>
-            <h1 class="title">BD Chaurasia's Anatomy</h1>
-            <div class="rule"></div>
-            <div class="byline">By <strong>BD Chaurasia</strong> · 9th Ed · CBS</div>
-            <div class="annot">The Indian anatomy bible for first-year
-              MBBS. Three volumes — upper limb, lower limb, abdomen —
-              with clinical correlations on every other page.</div>
-            <div class="price-row">
-              <span class="price">₹1,495</span>
-              <span class="mrp">₹1,895</span>
-              <span class="save">saving ₹400 (21%)</span>
-            </div>
+          <div class="eyebrow">Featured Acquisition</div>
+          <h1 class="title">BD Chaurasia's Anatomy</h1>
+          <div class="rule"></div>
+          <div class="byline">By <strong>BD Chaurasia</strong> · 9th Ed · CBS</div>
+          <div class="annot">The Indian anatomy bible for first-year
+            MBBS. Three volumes — upper limb, lower limb, abdomen —
+            with clinical correlations on every other page.</div>
+          <div class="price-row">
+            <span class="price">₹1,495</span>
+            <span class="mrp">₹1,895</span>
+            <span class="save">saving ₹400 (21%)</span>
           </div>
           <div class="archive-footer">
             <span>PMB · MBBS · 2024 · 0007</span>
             <span class="folio">Vol. VII · Folio 03 of 05</span>
-            <span>Pam Medical Books · Ahmedabad</span>
+            <span>Pam · Ahmedabad</span>
           </div>
         </div>
       </div>
 
-      <!-- Chapter IV — Gray's -->
+      <!-- ─── Chapter IV — Gray's ─── -->
       <div class="page">
-        <div class="page-inner">
+        <div class="inner inner-image">
+          <div class="paper-card"></div>
+          <div class="cover c-burgundy">
+            <div class="pub">Elsevier</div>
+            <div class="t">Gray's Anatomy for Students</div>
+            <div class="a">Drake, Vogl, Mitchell</div>
+            <div class="e">4th Ed</div>
+          </div>
+          <div class="dispatch">
+            <div class="l">Dispatch slip</div>
+            <div class="c">PMB · MBBS · 2024 · 0021</div>
+            <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="inner inner-text">
           <div class="chapter-mark">
-            <span class="label">Chapter</span>
-            <span class="roman">IV</span>
+            <div class="label">Chapter</div>
+            <div class="roman">IV</div>
           </div>
-          <div class="compose">
-            <div class="paper-card"></div>
-            <div class="cover c-burgundy">
-              <div class="pub">Elsevier</div>
-              <div class="t">Gray's Anatomy for Students</div>
-              <div class="a">Drake, Vogl, Mitchell</div>
-              <div class="e">4th Ed</div>
-            </div>
-            <div class="dispatch">
-              <div class="l">Dispatch slip</div>
-              <div class="c">PMB · MBBS · 2024 · 0021</div>
-              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
-            </div>
-          </div>
-          <div class="copy">
-            <div class="eyebrow">Featured Acquisitions</div>
-            <h1 class="title">Gray's Anatomy for Students</h1>
-            <div class="rule"></div>
-            <div class="byline">By <strong>Drake, Vogl, Mitchell</strong> · 4th Ed · Elsevier</div>
-            <div class="annot">The teaching-focused descendant of Henry
-              Gray's 1858 original. Clean illustrations, regional
-              chapters, perfect for first-year dissection labs.</div>
-            <div class="price-row">
-              <span class="price">₹3,295</span>
-              <span class="mrp">₹4,495</span>
-              <span class="save">saving ₹1,200 (27%)</span>
-            </div>
+          <div class="eyebrow">Featured Acquisition</div>
+          <h1 class="title">Gray's Anatomy for Students</h1>
+          <div class="rule"></div>
+          <div class="byline">By <strong>Drake, Vogl, Mitchell</strong> · 4th Ed · Elsevier</div>
+          <div class="annot">The teaching-focused descendant of Henry
+            Gray's 1858 original. Clean illustrations, regional chapters,
+            perfect for first-year dissection labs.</div>
+          <div class="price-row">
+            <span class="price">₹3,295</span>
+            <span class="mrp">₹4,495</span>
+            <span class="save">saving ₹1,200 (27%)</span>
           </div>
           <div class="archive-footer">
             <span>PMB · MBBS · 2024 · 0021</span>
             <span class="folio">Vol. VII · Folio 04 of 05</span>
-            <span>Pam Medical Books · Ahmedabad</span>
+            <span>Pam · Ahmedabad</span>
           </div>
         </div>
       </div>
 
-      <!-- Chapter V — Bailey & Love -->
+      <!-- ─── Chapter V — Bailey & Love ─── -->
       <div class="page">
-        <div class="page-inner">
+        <div class="inner inner-image">
+          <div class="paper-card"></div>
+          <div class="cover c-tan">
+            <div class="pub">Elsevier</div>
+            <div class="t">Bailey &amp; Love's Short Practice of Surgery</div>
+            <div class="a">Williams, Bulstrode, O'Connell</div>
+            <div class="e">28th Ed</div>
+          </div>
+          <div class="dispatch">
+            <div class="l">Dispatch slip</div>
+            <div class="c">PMB · MBBS · 2024 · 0058</div>
+            <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="inner inner-text">
           <div class="chapter-mark">
-            <span class="label">Chapter</span>
-            <span class="roman">V</span>
+            <div class="label">Chapter</div>
+            <div class="roman">V</div>
           </div>
-          <div class="compose">
-            <div class="paper-card"></div>
-            <div class="cover c-tan">
-              <div class="pub">Elsevier</div>
-              <div class="t">Bailey &amp; Love's Short Practice of Surgery</div>
-              <div class="a">Williams, Bulstrode, O'Connell</div>
-              <div class="e">28th Ed</div>
-            </div>
-            <div class="dispatch">
-              <div class="l">Dispatch slip</div>
-              <div class="c">PMB · MBBS · 2024 · 0058</div>
-              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
-            </div>
-          </div>
-          <div class="copy">
-            <div class="eyebrow">Featured Acquisitions</div>
-            <h1 class="title">Bailey &amp; Love's Surgery</h1>
-            <div class="rule"></div>
-            <div class="byline">By <strong>Williams, Bulstrode</strong> · 28th Ed · Elsevier</div>
-            <div class="annot">In print since 1932. The 28th edition
-              reorganises by surgical specialty rather than anatomy —
-              clearer for exam-prep, with NEET-PG style MCQs at chapter
-              ends.</div>
-            <div class="price-row">
-              <span class="price">₹6,995</span>
-              <span class="mrp">₹8,995</span>
-              <span class="save">saving ₹2,000 (22%)</span>
-            </div>
+          <div class="eyebrow">Featured Acquisition</div>
+          <h1 class="title">Bailey &amp; Love's Surgery</h1>
+          <div class="rule"></div>
+          <div class="byline">By <strong>Williams, Bulstrode</strong> · 28th Ed · Elsevier</div>
+          <div class="annot">In print since 1932. The 28th edition
+            reorganises by surgical specialty rather than anatomy —
+            clearer for exam-prep, with NEET-PG style MCQs at chapter
+            ends.</div>
+          <div class="price-row">
+            <span class="price">₹6,995</span>
+            <span class="mrp">₹8,995</span>
+            <span class="save">saving ₹2,000 (22%)</span>
           </div>
           <div class="archive-footer">
             <span>PMB · MBBS · 2024 · 0058</span>
             <span class="folio">Vol. VII · Folio 05 of 05</span>
-            <span>Pam Medical Books · Ahmedabad</span>
+            <span>Pam · Ahmedabad</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Page 12: BACK HARD COVER -->
+      <div class="hard">
+        <div class="hard-inner">
+          <div class="hard-eyebrow">Colophon</div>
+          <div class="hard-rule"></div>
+          <div class="hard-title">Pam Medical<br/>Book House</div>
+          <div class="hard-rule"></div>
+          <div class="hard-sub">9 Rangoli Complex, Ellis Bridge<br/>Ahmedabad &middot; 380006</div>
+          <div class="hard-stamp">EST. 2020</div>
         </div>
       </div>
 
@@ -429,20 +498,16 @@
   </div>
 
 <script>
-  // Turn.js — single-page mode (no facing pages, no hardcover book).
-  // Each chapter is a full-bleed editorial page; the only thing Turn.js
-  // contributes is its corner-curl flip animation.
   function init() {
     var w = window.innerWidth;
     var h = window.innerHeight;
     $('#book').turn({
       width:  w,
       height: h,
-      display: 'single',
       autoCenter: true,
       acceleration: true,
       gradients: true,
-      duration: 1100,
+      duration: 1200,
       when: {
         turned: function(e, page) {
           window.parent.postMessage({ type: 'pmb:flipped', page: page }, '*');
