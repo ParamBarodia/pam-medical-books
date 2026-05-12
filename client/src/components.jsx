@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { assetUrl } from './api.js';
 import { archiveCode } from './lib/archive-code.js';
-import { pageFlip } from './lib/pageflip.js';
 import { DispatchSlip, ArchiveStamp, CatalogCard, ChapterMark } from './world/index.jsx';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -440,71 +439,68 @@ function prefersReducedMotion() {
 // using an animated CSS clip-path while a "fold shadow" pseudo-element grows
 // from the same edge to fake the curl. The next slide sits underneath, fully
 // rendered, and is gradually exposed as the peel progresses.
+// Hero — desk-shuffle transition.
+// On a turn, the OUT layer (the chapter we're leaving) lifts up-and-to-the-
+// side with a small rotation and fades, like a sheet of paper being slid
+// off a desk. The IN layer (the chapter we're going to) slides in from
+// the opposite corner with a slight rotation that settles into place.
+// All CSS, no DOM mutation libraries — React 18 safe.
+const TRANSITION_MS = 720;
+
 export function Hero({ books = [], onAdd, onOpen }) {
   const slides = books.length ? books : [FALLBACK_HERO_BOOK];
   const [index, setIndex] = useState(0);
-  const [peeling, setPeeling] = useState(false);
-  const [paused, setPaused] = useState(false);          // hover/focus pause
-  const [userPaused, setUserPaused] = useState(false);  // explicit toggle
-  const timerRef = useRef(null);
-  const bannerRef = useRef(null);
+  const [prevIndex, setPrevIndex] = useState(null);
+  const [direction, setDirection] = useState('next');
+  const [turnCount, setTurnCount] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const animTimer = useRef(null);
+  const transitioningRef = useRef(false);
 
-  // All three turn handlers route through pageFlip() — the engine
-  // centralizes the grain-bend tween, content-swap timing, and
-  // reduced-motion fallback. Mode is 'manual' for user-initiated turns,
-  // 'auto' for the interval-driven ones (currently same duration; the
-  // mode flag is here so callers can express intent and the engine can
-  // diverge later without touching call sites).
-  const turn = useCallback((computeNextIndex, mode = 'manual') => {
-    if (peeling || slides.length <= 1) return;
-    setPeeling(true);
-    pageFlip({
-      mode,
-      // Content swap happens AT END of the peel — see lib/pageflip.js.
-      onEnd: () => {
-        setIndex(computeNextIndex);
-        setPeeling(false);
-      },
-    });
-  }, [peeling, slides.length]);
+  const turn = useCallback((target, dir) => {
+    if (transitioningRef.current || slides.length <= 1) return;
+    if (target === index) return;
+    transitioningRef.current = true;
+    setDirection(dir);
+    setPrevIndex(index);
+    setIndex(target);
+    setTurnCount((c) => c + 1);
+    clearTimeout(animTimer.current);
+    animTimer.current = setTimeout(() => {
+      setPrevIndex(null);
+      transitioningRef.current = false;
+    }, TRANSITION_MS + 40);
+  }, [index, slides.length]);
+
+  const goNext = useCallback(() => {
+    turn((index + 1) % slides.length, 'next');
+  }, [turn, index, slides.length]);
 
   const goPrev = useCallback(() => {
-    turn((i) => (i - 1 + slides.length) % slides.length, 'manual');
-  }, [turn, slides.length]);
-
-  const goNext = useCallback((mode = 'manual') => {
-    turn((i) => (i + 1) % slides.length, mode);
-  }, [turn, slides.length]);
+    turn((index - 1 + slides.length) % slides.length, 'prev');
+  }, [turn, index, slides.length]);
 
   const goTo = useCallback((target) => {
     if (target === index) return;
-    turn(() => target, 'manual');
+    turn(target, target > index ? 'next' : 'prev');
   }, [turn, index]);
 
-  // First advance fires after a short delay so the user sees the page-peel
-  // effect immediately on page load. Subsequent advances use the longer
-  // reading interval. Paused outright if the OS has reduced-motion on, or
-  // if the user clicked the pause button.
-  const hasAdvancedOnceRef = useRef(false);
+  useEffect(() => () => clearTimeout(animTimer.current), []);
+
+  // Auto-advance — paused on hover/focus or explicit toggle.
   useEffect(() => {
     if (paused || userPaused || slides.length <= 1) return;
-    if (prefersReducedMotion()) return;
-    const delay = hasAdvancedOnceRef.current ? SLIDE_INTERVAL_MS : FIRST_ADVANCE_MS;
-    timerRef.current = setTimeout(() => {
-      hasAdvancedOnceRef.current = true;
-      goNext('auto');
-    }, delay);
-    return () => clearTimeout(timerRef.current);
-  }, [index, paused, userPaused, goNext, slides.length]);
+    const id = setInterval(goNext, SLIDE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [paused, userPaused, slides.length, goNext]);
 
-  const current = slides[index];
-  const next = slides[(index + 1) % slides.length];
+  const transitioning = prevIndex !== null;
 
   return (
     <section style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule)', padding: '24px 32px' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
         <div
-          ref={bannerRef}
           className="ms-hero-banner"
           role="region"
           aria-roledescription="carousel"
@@ -526,26 +522,33 @@ export function Hero({ books = [], onAdd, onOpen }) {
             overflow: 'hidden',
           }}
         >
-          {/* The "next" page sits beneath the current one, full bleed */}
-          <div className="ms-hero-stack ms-hero-stack-next" aria-hidden="true">
-            <HeroPageContent book={next} onAdd={onAdd} onOpen={onOpen}
-              chapter={((index + 1) % slides.length) + 1} total={slides.length} />
-          </div>
-          {/* The "current" page on top — clip-path animates it peeling away */}
-          <div className={`ms-hero-stack ms-hero-stack-current ${peeling ? 'is-peeling' : ''}`}>
-            <HeroPageContent book={current} onAdd={onAdd} onOpen={onOpen}
+          {/* OUT layer — only rendered during a transition. Key on turnCount
+              so each turn creates a fresh element and re-fires the animation. */}
+          {transitioning && (
+            <div key={`out-${turnCount}`}
+                 className={`ms-hero-stack ms-hero-stack-out-${direction}`}
+                 aria-hidden="true">
+              <HeroPageContent book={slides[prevIndex]} onAdd={onAdd} onOpen={onOpen}
+                chapter={prevIndex + 1} total={slides.length} />
+            </div>
+          )}
+          {/* IN layer — always rendered. Key on turnCount so the IN animation
+              re-fires on every turn. Animation class is only applied during
+              the transition window; when idle the stack sits at its rest
+              transform (no animation). */}
+          <div key={`in-${turnCount}`}
+               className={`ms-hero-stack ${transitioning ? `ms-hero-stack-in-${direction}` : ''}`}>
+            <HeroPageContent book={slides[index]} onAdd={onAdd} onOpen={onOpen}
               chapter={index + 1} total={slides.length} />
-            {/* The fold-shadow pseudo overlay — also clipped, gives the bent-paper highlight */}
-            <div className="ms-hero-fold" aria-hidden="true" />
           </div>
 
           {slides.length > 1 && (
             <>
-              <button onClick={goPrev} aria-label="Previous slide"
+              <button onClick={goPrev} aria-label="Previous chapter"
                 className="ms-hero-nav" style={{ left: 16 }}>
                 <Icon name="arrow-right" size={18} style={{ transform: 'rotate(180deg)' }} />
               </button>
-              <button onClick={goNext} aria-label="Next slide"
+              <button onClick={goNext} aria-label="Next chapter"
                 className="ms-hero-nav" style={{ right: 16 }}>
                 <Icon name="arrow-right" size={18} />
               </button>
@@ -560,15 +563,14 @@ export function Hero({ books = [], onAdd, onOpen }) {
             </>
           )}
 
-          {/* Polite live region announcing the current slide for screen readers */}
           <div role="status" aria-live="polite" className="sr-only">
-            Slide {index + 1} of {slides.length}: {slides[index]?.title}
+            Chapter {index + 1} of {slides.length}: {slides[index]?.title}
           </div>
 
           {slides.length > 1 && (
             <div role="tablist" aria-label="Choose a chapter" style={{
-              position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)',
-              display: 'flex', gap: 20, alignItems: 'center', zIndex: 6,
+              position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', gap: 20, alignItems: 'center', zIndex: 10,
             }}>
               {slides.map((_, i) => (
                 <button key={i}
