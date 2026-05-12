@@ -741,10 +741,10 @@ function toRoman(n) {
 
 export function TrustStrip() {
   const items = [
-    { icon: 'truck',  title: 'Quick dispatch',   sub: 'Within 2 working days', code: 'POL · DISPATCH · 01' },
-    { icon: 'shield', title: '100% original',    sub: 'Authorised reseller',   code: 'POL · GENUINE · 02' },
-    { icon: 'wallet', title: 'Cash on delivery', sub: '21,000 PIN codes',      code: 'POL · COD · 03' },
-    { icon: 'rotate', title: 'Easy returns',     sub: '7-day, no questions',   code: 'POL · RETURN · 04' },
+    { icon: 'truck',  title: 'Quick dispatch',   sub: 'Within 2 working days' },
+    { icon: 'shield', title: '100% original',    sub: 'Authorised reseller' },
+    { icon: 'wallet', title: 'Cash on delivery', sub: '21,000 PIN codes' },
+    { icon: 'rotate', title: 'Easy returns',     sub: '7-day, no questions' },
   ];
   return (
     <section style={{ background: 'var(--paper-2)', borderBottom: '1px solid var(--rule-soft)' }}>
@@ -756,8 +756,7 @@ export function TrustStrip() {
           <CatalogCard key={i}
             icon={<Icon name={it.icon} size={20} />}
             title={it.title}
-            sub={it.sub}
-            code={it.code} />
+            sub={it.sub} />
         ))}
       </div>
     </section>
@@ -887,12 +886,11 @@ export function BookCard({ book, onAdd, onOpen }) {
 
       <h3 className="serif" style={{ fontSize: 15, lineHeight: 1.2, fontWeight: 500, color: 'var(--ink)',
         margin: '0 0 4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
-        {book.title} <span className="t-mono" style={{ color: 'var(--muted)' }}>· {book.edition}</span>
+        {book.title}
       </h3>
-      <div className="t-meta" style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{book.author}</div>
-
-      {/* Archive code — the inhabited-world line */}
-      <div className="t-archive" style={{ marginTop: 8, fontSize: 10 }}>{archiveCode(book)}</div>
+      <div className="t-meta" style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+        {book.author} <span className="t-mono" style={{ color: 'var(--ink-2)' }}>· {book.edition}</span>
+      </div>
 
       <div style={{ marginTop: 'auto', paddingTop: 12 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-2)', fontFeatureSettings: '"tnum","lnum"' }}>
@@ -955,8 +953,7 @@ export function Bundles({ bundles, onAdd }) {
               <div className="eyebrow" style={{ color: 'var(--accent)' }}>Combo · {b.books.length} books</div>
               <h3 className="display" style={{ fontSize: 22, fontWeight: 500, marginTop: 8, lineHeight: 1.15 }}>{b.title}</h3>
               <p className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>{b.subtitle}</p>
-              <div className="t-archive" style={{ marginTop: 8, fontSize: 9 }}>{`PMB · BUNDLE · ${(b.id || '').toString().padStart(4, '0').slice(0, 4)}`}</div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '14px 0', borderTop: '1px dotted var(--rule-soft)', paddingTop: 14 }}>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '18px 0 14px' }}>
                 {b.books.map((bk, i) => (
                   <li key={i} className="serif" style={{ fontSize: 13, padding: '4px 0', display: 'flex', gap: 8 }}>
                     <Icon name="check" size={13} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
@@ -1016,7 +1013,6 @@ export function Forthcoming({ books, onOpen, onNotify }) {
                 <div className="serif" style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                   {b.author} · {b.edition}
                 </div>
-                <div className="t-archive" style={{ marginTop: 6, fontSize: 9 }}>{archiveCode(b)}</div>
                 <div style={{ marginTop: 'auto', paddingTop: 14 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
                     <span className="serif" style={{ fontSize: 15, fontWeight: 600, color: 'var(--accent)' }}>
@@ -1063,7 +1059,6 @@ export function SecondHand({ books, onAdd, onOpen }) {
                 </div>
                 <h3 className="serif" style={{ fontSize: 14, lineHeight: 1.2, fontWeight: 500, minHeight: 36, overflow: 'hidden' }}>{b.title}</h3>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFeatureSettings: '"tnum","lnum"' }}>{b.edition}</div>
-                <div className="t-archive" style={{ marginTop: 4, fontSize: 9 }}>{archiveCode(b)}</div>
                 <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--paper-2)', borderLeft: `3px solid ${condColor}`, fontSize: 11 }}>
                   <div className="serif" style={{ fontWeight: 600 }}>Sold by {b.seller?.split(',')[0]}</div>
                   <div className="serif" style={{ fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>{b.soldBy}</div>
