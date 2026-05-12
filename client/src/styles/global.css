@@ -524,61 +524,168 @@ html { scroll-behavior: smooth; }
 .ms-arrow-link:hover .ms-arrow { transform: translateX(4px); }
 .ms-arrow-link:hover { color: #6e2117; }
 
-/* ─── Hero desk-shuffle transition ────────────────────────────────────
-   The hero is two stacked layers. On a turn, the OUTGOING chapter lifts
-   up-and-to-one-side with a slight rotation and fades; the INCOMING
-   chapter slides in from the opposite corner with a slight rotation
-   that settles into place. The motion is BIG (~14% of viewport
-   translation) so it's unmistakable — no clip-path subtleties.
+/* ─── Hero corner-curl page turn (Turn.js-inspired, pure CSS) ────────
+   Two layers: OUT (current chapter on top, animates a clip-path curl
+   from the bottom-right corner toward the top-left spine) and IN (next
+   chapter underneath, fades in as the curl exposes it).
 
-   "next" direction: out shifts up-left, in arrives from bottom-right.
-   "prev" direction: mirror image. */
+   How the visual replicates Turn.js without any DOM mutation:
+   • clip-path keyframes pinch the page's bottom-right corner inward,
+     drawing a diagonal fold that sweeps from bottom-right → top-left
+   • A ::before pseudo-element renders a diagonal fold-shadow that
+     follows the curl, simulating the underside of the lifting paper
+   • Drop-shadow grows in offset & blur as the page lifts, simulating
+     light catching the bend
+   • The page tilts (rotate) and translates slightly so the lift feels
+     three-dimensional, not just a mask
+   • IN layer fades in linearly underneath; once the curl exposes
+     enough of it, it reads as the new chapter
+
+   "next" curls bottom-right → top-left.  "prev" mirrors: bottom-left
+   → top-right.
+
+   Duration is 1100ms cinematic — slow enough to be perceptible,
+   fast enough not to drag. */
 .ms-hero-stack {
   position: absolute;
   inset: 0;
-  will-change: transform, opacity, filter;
+  will-change: clip-path, transform, opacity, filter;
 }
-.ms-hero-stack-out-next {
-  z-index: 2;
-  animation: ms-page-out-next 720ms var(--ease-cinematic) forwards;
-  transform-origin: 0% 50%;
-}
-.ms-hero-stack-in-next {
-  z-index: 3;
-  animation: ms-page-in-next 720ms var(--ease-cinematic) forwards;
-  transform-origin: 100% 50%;
-}
+.ms-hero-stack-out-next,
 .ms-hero-stack-out-prev {
-  z-index: 2;
-  animation: ms-page-out-prev 720ms var(--ease-cinematic) forwards;
-  transform-origin: 100% 50%;
-}
-.ms-hero-stack-in-prev {
   z-index: 3;
-  animation: ms-page-in-prev 720ms var(--ease-cinematic) forwards;
-  transform-origin: 0% 50%;
+  /* The pseudo-element fold sits over the page; both share the same
+     clip-path animation so the fold only shows where the page IS. */
+  position: absolute;
 }
-@keyframes ms-page-out-next {
-  0%   { opacity: 1; transform: translate(0, 0)         rotate(0deg)  scale(1);    filter: brightness(1)    drop-shadow(0 0 0 transparent); }
-  100% { opacity: 0; transform: translate(-14%, -10%)   rotate(-4deg) scale(0.92); filter: brightness(0.82) drop-shadow(-24px 16px 36px rgba(15,13,8,0.42)); }
+.ms-hero-stack-in-next,
+.ms-hero-stack-in-prev {
+  z-index: 2;
+  animation: ms-page-reveal 1100ms ease forwards;
 }
-@keyframes ms-page-in-next {
-  0%   { opacity: 0; transform: translate(18%, 14%)     rotate(5deg)  scale(0.9);  filter: brightness(0.88); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(0, 0)         rotate(0deg)  scale(1);    filter: brightness(1); }
+/* OUT — next direction: curl from bottom-right toward top-left spine */
+.ms-hero-stack-out-next {
+  animation: ms-page-curl-next 1100ms var(--ease-cinematic) forwards;
+  transform-origin: 100% 100%;
 }
-@keyframes ms-page-out-prev {
-  0%   { opacity: 1; transform: translate(0, 0)         rotate(0deg)  scale(1);    filter: brightness(1)    drop-shadow(0 0 0 transparent); }
-  100% { opacity: 0; transform: translate(14%, 10%)     rotate(4deg)  scale(0.92); filter: brightness(0.82) drop-shadow(24px 16px 36px rgba(15,13,8,0.42)); }
+.ms-hero-stack-out-next::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg,
+      transparent 35%,
+      rgba(15, 13, 8, 0.28) 49%,
+      rgba(255, 255, 255, 0.30) 51%,
+      transparent 62%);
+  background-size: 200% 200%;
+  background-position: 100% 100%;
+  animation: ms-fold-sweep-next 1100ms var(--ease-cinematic) forwards;
+  z-index: 5;
 }
-@keyframes ms-page-in-prev {
-  0%   { opacity: 0; transform: translate(-18%, -14%)   rotate(-5deg) scale(0.9);  filter: brightness(0.88); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(0, 0)         rotate(0deg)  scale(1);    filter: brightness(1); }
+/* OUT — prev direction: mirror, curl from bottom-left → top-right */
+.ms-hero-stack-out-prev {
+  animation: ms-page-curl-prev 1100ms var(--ease-cinematic) forwards;
+  transform-origin: 0% 100%;
+}
+.ms-hero-stack-out-prev::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(45deg,
+      transparent 35%,
+      rgba(15, 13, 8, 0.28) 49%,
+      rgba(255, 255, 255, 0.30) 51%,
+      transparent 62%);
+  background-size: 200% 200%;
+  background-position: 0% 100%;
+  animation: ms-fold-sweep-prev 1100ms var(--ease-cinematic) forwards;
+  z-index: 5;
+}
+/* Curl keyframes — clip-path pinches the bottom-right corner inward
+   along a diagonal until the page collapses against the top-left spine.
+   Drop-shadow tracks the curl direction; subtle rotation adds dimensionality. */
+@keyframes ms-page-curl-next {
+  0% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    transform: rotate(0deg);
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  20% {
+    clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+    transform: rotate(-0.6deg);
+    filter: brightness(0.99) drop-shadow(-6px 8px 16px rgba(15,13,8,0.24));
+  }
+  45% {
+    clip-path: polygon(0 0, 92% 0, 38% 100%, 0 100%);
+    transform: rotate(-1.4deg);
+    filter: brightness(0.94) drop-shadow(-18px 14px 32px rgba(15,13,8,0.4));
+  }
+  72% {
+    clip-path: polygon(0 0, 42% 0, 0 64%, 0 100%);
+    transform: rotate(-2.2deg);
+    filter: brightness(0.88) drop-shadow(-28px 18px 42px rgba(15,13,8,0.5));
+  }
+  100% {
+    clip-path: polygon(0 0, 0 0, 0 0, 0 0);
+    transform: rotate(-2.8deg);
+    filter: brightness(0.8) drop-shadow(-34px 22px 50px rgba(15,13,8,0.58));
+  }
+}
+@keyframes ms-page-curl-prev {
+  0% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    transform: rotate(0deg);
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  20% {
+    clip-path: polygon(12% 100%, 0 0, 100% 0, 100% 100%);
+    transform: rotate(0.6deg);
+    filter: brightness(0.99) drop-shadow(6px 8px 16px rgba(15,13,8,0.24));
+  }
+  45% {
+    clip-path: polygon(62% 100%, 8% 0, 100% 0, 100% 100%);
+    transform: rotate(1.4deg);
+    filter: brightness(0.94) drop-shadow(18px 14px 32px rgba(15,13,8,0.4));
+  }
+  72% {
+    clip-path: polygon(100% 64%, 58% 0, 100% 0, 100% 100%);
+    transform: rotate(2.2deg);
+    filter: brightness(0.88) drop-shadow(28px 18px 42px rgba(15,13,8,0.5));
+  }
+  100% {
+    clip-path: polygon(100% 0, 100% 0, 100% 0, 100% 0);
+    transform: rotate(2.8deg);
+    filter: brightness(0.8) drop-shadow(34px 22px 50px rgba(15,13,8,0.58));
+  }
+}
+/* Fold-shadow sweep — diagonal gradient that pretends to be the crease
+   between the flat portion of the page and the lifted portion. */
+@keyframes ms-fold-sweep-next {
+  0%   { background-position: 100% 100%; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { background-position: -50% -50%; opacity: 0; }
+}
+@keyframes ms-fold-sweep-prev {
+  0%   { background-position: 0% 100%; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { background-position: 150% -50%; opacity: 0; }
+}
+/* IN layer — fades up underneath as the curl exposes it. */
+@keyframes ms-page-reveal {
+  0%   { opacity: 0; transform: scale(0.98); }
+  40%  { opacity: 0.7; }
+  100% { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ms-hero-stack-out-next, .ms-hero-stack-out-prev { animation: ms-page-fade-out 280ms ease forwards; }
   .ms-hero-stack-in-next,  .ms-hero-stack-in-prev  { animation: ms-page-fade-in  280ms ease forwards; }
+  .ms-hero-stack-out-next::before, .ms-hero-stack-out-prev::before { animation: none !important; opacity: 0 !important; }
   @keyframes ms-page-fade-out { to { opacity: 0; } }
   @keyframes ms-page-fade-in  { from { opacity: 0; } to { opacity: 1; } }
 }
