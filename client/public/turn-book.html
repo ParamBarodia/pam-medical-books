@@ -484,6 +484,14 @@
   function init() {
     var w = window.innerWidth;
     var h = window.innerHeight;
+    // Looping book: 12 pages total (page 1 = blank, pages 2-11 = chapters
+    // I-V as spreads, page 12 = blank). The blank end leaves exist purely
+    // for spread pairing; user never lands on them. Going past Chapter V
+    // wraps to Chapter I; going before Chapter I wraps to Chapter V.
+    var FIRST_CHAPTER_LEFT = 2;     // Chapter I left page
+    var LAST_CHAPTER_LEFT  = 10;    // Chapter V left page
+    var LAST_CHAPTER_RIGHT = 11;    // Chapter V right page
+
     $('#book').turn({
       width:  w,
       height: h,
@@ -491,8 +499,21 @@
       acceleration: true,
       gradients: true,
       duration: 1200,
-      page: 2,                  // open directly on Chapter I, skip blank endleaf
+      page: 2,
       when: {
+        // Intercept drag-flips that would land on a blank end leaf, wrap
+        // to the opposite chapter. preventDefault stops the flip in
+        // progress; setTimeout lets the event finish before we trigger
+        // the wrap navigation.
+        turning: function(e, page) {
+          if (page === 12) {
+            e.preventDefault();
+            setTimeout(function() { $('#book').turn('page', FIRST_CHAPTER_LEFT); }, 0);
+          } else if (page === 1) {
+            e.preventDefault();
+            setTimeout(function() { $('#book').turn('page', LAST_CHAPTER_LEFT); }, 0);
+          }
+        },
         turned: function(e, page) {
           window.parent.postMessage({ type: 'pmb:flipped', page: page }, '*');
         }
@@ -503,9 +524,26 @@
     });
     window.addEventListener('message', function(ev) {
       if (!ev.data || typeof ev.data !== 'object') return;
-      if (ev.data.type === 'pmb:next') $('#book').turn('next');
-      if (ev.data.type === 'pmb:prev') $('#book').turn('previous');
-      if (ev.data.type === 'pmb:goto') $('#book').turn('page', ev.data.page);
+      var current = $('#book').turn('page');
+      if (ev.data.type === 'pmb:next') {
+        if (current >= LAST_CHAPTER_LEFT) {
+          // Currently on Chapter V — wrap to Chapter I instead of advancing
+          // to the blank back endleaf.
+          $('#book').turn('page', FIRST_CHAPTER_LEFT);
+        } else {
+          $('#book').turn('next');
+        }
+      } else if (ev.data.type === 'pmb:prev') {
+        if (current <= FIRST_CHAPTER_LEFT + 1) {
+          // Currently on Chapter I — wrap to Chapter V instead of going
+          // back to the blank front endleaf.
+          $('#book').turn('page', LAST_CHAPTER_LEFT);
+        } else {
+          $('#book').turn('previous');
+        }
+      } else if (ev.data.type === 'pmb:goto') {
+        $('#book').turn('page', ev.data.page);
+      }
     });
     window.parent.postMessage({ type: 'pmb:ready' }, '*');
   }
