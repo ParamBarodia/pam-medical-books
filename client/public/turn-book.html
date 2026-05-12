@@ -22,7 +22,7 @@
   html, body {
     margin: 0; padding: 0;
     height: 100%; width: 100%;
-    background: #2a1f12;       /* dark table the book rests on */
+    background: var(--paper-deep);
     font-family: "Source Serif 4", Georgia, serif;
     color: var(--ink);
     overflow: hidden;
@@ -254,17 +254,9 @@
   <div id="book-wrap">
     <div id="book">
 
-      <!-- Page 1: FRONT HARD COVER -->
-      <div class="hard">
-        <div class="hard-inner">
-          <div class="hard-eyebrow">The Archive</div>
-          <div class="hard-rule"></div>
-          <div class="hard-title">Pam Medical<br/>Books</div>
-          <div class="hard-rule"></div>
-          <div class="hard-sub">Ahmedabad's medical bookseller<br/>since 2020</div>
-          <div class="hard-stamp">VOL. VII · 2026</div>
-        </div>
-      </div>
+      <!-- Page 1: blank endleaf — keeps spread pairing intact without
+           showing a cover. paper-deep background blends with inner pages. -->
+      <div class="page"><div class="inner"></div></div>
 
       <!-- ─── Chapter I — Robbins ─── pages 2 (image) + 3 (text) -->
       <div class="page">
@@ -482,17 +474,8 @@
         </div>
       </div>
 
-      <!-- Page 12: BACK HARD COVER -->
-      <div class="hard">
-        <div class="hard-inner">
-          <div class="hard-eyebrow">Colophon</div>
-          <div class="hard-rule"></div>
-          <div class="hard-title">Pam Medical<br/>Book House</div>
-          <div class="hard-rule"></div>
-          <div class="hard-sub">9 Rangoli Complex, Ellis Bridge<br/>Ahmedabad &middot; 380006</div>
-          <div class="hard-stamp">EST. 2020</div>
-        </div>
-      </div>
+      <!-- Page 12: blank endleaf -->
+      <div class="page"><div class="inner"></div></div>
 
     </div>
   </div>
@@ -508,6 +491,7 @@
       acceleration: true,
       gradients: true,
       duration: 1200,
+      page: 2,                  // open directly on Chapter I, skip blank endleaf
       when: {
         turned: function(e, page) {
           window.parent.postMessage({ type: 'pmb:flipped', page: page }, '*');
