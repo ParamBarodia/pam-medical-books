@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Archive Viewer</title>
+<style>
+  :root {
+    --paper:        #f4ede0;
+    --paper-2:      #ece2d0;
+    --paper-deep:   #d8c9ae;
+    --ink-deep:     #0f0d08;
+    --ink:          #1c1a14;
+    --ink-2:        #3a352a;
+    --muted:        #5a5446;
+    --oxblood:      #6e2117;
+    --saffron:      #c8893e;
+    --rule-soft:    #c8bfa8;
+    --rule-hair:    #a89e83;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%; width: 100%;
+    background: var(--paper-deep);
+    font-family: "Source Serif 4", Georgia, serif;
+    color: var(--ink);
+    overflow: hidden;
+  }
+  #book-wrap {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #book {
+    background: var(--paper-deep);
+  }
+  .page {
+    background: var(--paper-deep);
+    overflow: hidden;
+    position: relative;
+  }
+  /* Page composition — matches the storefront hero style */
+  .page-inner {
+    width: 100%; height: 100%;
+    padding: 48px 56px 64px;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    background:
+      radial-gradient(ellipse at 25% 30%, rgba(216,201,174,0.55) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 80%, rgba(15,13,8,0.10) 0%, transparent 50%),
+      var(--paper-deep);
+  }
+  .chapter-mark {
+    position: absolute; top: 24px; left: 48px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .chapter-mark .eyebrow {
+    font-family: "Inter", sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .chapter-mark .roman {
+    font-family: "Fraunces", serif;
+    font-style: italic; font-size: 56px;
+    color: var(--oxblood); line-height: 1; font-weight: 500;
+  }
+  .still-life {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .paper-card {
+    position: absolute; inset: 8% 18% 8% 18%;
+    background: var(--paper);
+    box-shadow: 0 24px 48px -20px rgba(15,13,8,0.32),
+                0 6px 14px -6px rgba(15,13,8,0.18);
+    transform: rotate(-1.2deg);
+  }
+  .cover {
+    position: relative;
+    transform: rotate(1.4deg);
+    width: 200px;
+    height: 282px;
+    display: flex; flex-direction: column;
+    padding: 14px 12px 12px 18px;
+    color: #f0d8a0;
+    box-shadow: inset 6px 0 0 rgba(0,0,0,0.18),
+                0 14px 26px -10px rgba(0,0,0,0.45),
+                0 6px 14px -8px rgba(0,0,0,0.5);
+  }
+  .cover .publisher {
+    font-family: "Inter", sans-serif;
+    font-size: 9px; letter-spacing: 0.2em;
+    text-transform: uppercase; opacity: 0.85;
+    margin-bottom: 8px;
+  }
+  .cover .title {
+    font-family: "Fraunces", serif;
+    font-size: 13px; font-weight: 600; line-height: 1.1;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  }
+  .cover .author {
+    margin-top: auto;
+    font-family: "Inter", sans-serif;
+    font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; opacity: 0.75;
+  }
+  .cover .edition {
+    font-family: "JetBrains Mono", monospace;
+    color: #f0d8a0;
+    margin-top: 3px;
+    font-size: 9px; opacity: 0.8;
+  }
+  .dispatch-slip {
+    position: absolute; left: 8%; bottom: 14%;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft);
+    padding: 10px 14px;
+    transform: rotate(-6deg);
+    box-shadow: 0 8px 18px -10px rgba(15,13,8,0.32);
+    min-width: 180px;
+    font-family: "JetBrains Mono", monospace;
+    color: var(--ink-2);
+  }
+  .dispatch-slip .label {
+    font-size: 9px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .dispatch-slip .code {
+    font-size: 10px; margin-top: 4px;
+  }
+  .dispatch-slip .row {
+    display: flex; justify-content: space-between; gap: 12px;
+    margin-top: 6px; padding-top: 4px;
+    border-top: 1px dashed var(--rule-hair);
+    font-size: 9px; color: var(--muted);
+  }
+  .copy {
+    position: relative;
+    max-width: 480px;
+  }
+  .copy .eyebrow {
+    font-family: "Inter", sans-serif;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--oxblood);
+  }
+  .copy .title {
+    font-family: "Fraunces", serif;
+    font-weight: 500; font-size: 44px;
+    line-height: 1.04; letter-spacing: -0.022em;
+    color: var(--ink-deep); margin: 14px 0 0;
+  }
+  .copy .rule {
+    height: 1px; width: 64px; background: var(--oxblood);
+    opacity: 0.85; margin: 18px 0;
+  }
+  .copy .byline {
+    font-size: 14px; color: var(--ink-2);
+    font-style: italic;
+  }
+  .copy .byline strong {
+    color: var(--ink-deep); font-style: normal; font-weight: 500;
+  }
+  .copy .price-row {
+    margin-top: 24px; display: flex; align-items: baseline; gap: 14px;
+  }
+  .copy .price-row .price {
+    font-family: "Fraunces", serif; font-weight: 600;
+    font-size: 28px; color: var(--oxblood);
+    font-feature-settings: "tnum","lnum";
+  }
+  .copy .price-row .mrp {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--muted); text-decoration: line-through;
+    font-size: 12px;
+  }
+  .archive-footer {
+    position: absolute; left: 48px; right: 48px; bottom: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--rule-hair); padding-top: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .archive-footer .folio {
+    font-family: "Fraunces", serif; font-style: italic;
+    font-size: 12px; letter-spacing: 0; text-transform: none;
+  }
+  /* Turn.js page back-side simulated styles */
+  .page.fixed { background: var(--paper-deep); }
+  /* Cover variants — different jewel-tones for each chapter */
+  .cover.c-oxblood { background: #7a1e2b; }
+  .cover.c-forest  { background: #1f4438; color: #e6d8a8; }
+  .cover.c-ink     { background: #1c1a14; }
+  .cover.c-burgundy{ background: #5a1e22; }
+  .cover.c-tan     { background: #6f4a23; }
+</style>
+<!-- jQuery + Turn.js from CDN. Turn.js v4 ships from the official site,
+     using a pinned, well-known mirror so this works offline once cached. -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/blasten/turn.js@master/turn.min.js"></script>
+</head>
+<body>
+  <div id="book-wrap">
+    <div id="book">
+      <!-- 5 chapters. Each .page is a single page in the book.
+           Turn.js handles the corner-curl flip natively. -->
+      <div class="page">
+        <div class="page-inner">
+          <div class="chapter-mark">
+            <span class="eyebrow">Chapter</span>
+            <span class="roman">I</span>
+          </div>
+          <div class="still-life">
+            <div class="paper-card"></div>
+            <div class="cover c-oxblood">
+              <div class="publisher">Elsevier</div>
+              <div class="title">Robbins Basic Pathology</div>
+              <div class="author">Vinay Kumar</div>
+              <div class="edition">11th Ed</div>
+            </div>
+            <div class="dispatch-slip">
+              <div class="label">Dispatch slip</div>
+              <div class="code">PMB · MBBS · 2024 · 0042</div>
+              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <div class="eyebrow">Featured Acquisitions</div>
+            <h1 class="title">Robbins Basic Pathology</h1>
+            <div class="rule"></div>
+            <div class="byline">By <strong>Vinay Kumar</strong> · 11th Ed · Elsevier</div>
+            <div class="price-row">
+              <span class="price">₹1,799</span>
+              <span class="mrp">₹2,295</span>
+            </div>
+          </div>
+          <div class="archive-footer">
+            <span>PMB · MBBS · 2024 · 0042</span>
+            <span class="folio">Vol. VII · Folio 01 of 05</span>
+            <span>Pam Medical Books</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="page-inner">
+          <div class="chapter-mark">
+            <span class="eyebrow">Chapter</span>
+            <span class="roman">II</span>
+          </div>
+          <div class="still-life">
+            <div class="paper-card"></div>
+            <div class="cover c-forest">
+              <div class="publisher">McGraw-Hill</div>
+              <div class="title">Harrison's Principles of Internal Medicine</div>
+              <div class="author">Joseph Loscalzo</div>
+              <div class="edition">21st Ed</div>
+            </div>
+            <div class="dispatch-slip">
+              <div class="label">Dispatch slip</div>
+              <div class="code">PMB · MBBS · 2024 · 0103</div>
+              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <div class="eyebrow">Featured Acquisitions</div>
+            <h1 class="title">Harrison's Internal Medicine</h1>
+            <div class="rule"></div>
+            <div class="byline">By <strong>Joseph Loscalzo</strong> · 21st Ed · McGraw-Hill</div>
+            <div class="price-row">
+              <span class="price">₹7,499</span>
+              <span class="mrp">₹9,999</span>
+            </div>
+          </div>
+          <div class="archive-footer">
+            <span>PMB · MBBS · 2024 · 0103</span>
+            <span class="folio">Vol. VII · Folio 02 of 05</span>
+            <span>Pam Medical Books</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="page-inner">
+          <div class="chapter-mark">
+            <span class="eyebrow">Chapter</span>
+            <span class="roman">III</span>
+          </div>
+          <div class="still-life">
+            <div class="paper-card"></div>
+            <div class="cover c-ink">
+              <div class="publisher">CBS Publishers</div>
+              <div class="title">BD Chaurasia's Human Anatomy</div>
+              <div class="author">BD Chaurasia</div>
+              <div class="edition">9th Ed</div>
+            </div>
+            <div class="dispatch-slip">
+              <div class="label">Dispatch slip</div>
+              <div class="code">PMB · MBBS · 2024 · 0007</div>
+              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <div class="eyebrow">Featured Acquisitions</div>
+            <h1 class="title">BD Chaurasia's Anatomy</h1>
+            <div class="rule"></div>
+            <div class="byline">By <strong>BD Chaurasia</strong> · 9th Ed · CBS</div>
+            <div class="price-row">
+              <span class="price">₹1,495</span>
+              <span class="mrp">₹1,895</span>
+            </div>
+          </div>
+          <div class="archive-footer">
+            <span>PMB · MBBS · 2024 · 0007</span>
+            <span class="folio">Vol. VII · Folio 03 of 05</span>
+            <span>Pam Medical Books</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="page-inner">
+          <div class="chapter-mark">
+            <span class="eyebrow">Chapter</span>
+            <span class="roman">IV</span>
+          </div>
+          <div class="still-life">
+            <div class="paper-card"></div>
+            <div class="cover c-burgundy">
+              <div class="publisher">Elsevier</div>
+              <div class="title">Gray's Anatomy for Students</div>
+              <div class="author">Drake, Vogl, Mitchell</div>
+              <div class="edition">4th Ed</div>
+            </div>
+            <div class="dispatch-slip">
+              <div class="label">Dispatch slip</div>
+              <div class="code">PMB · MBBS · 2024 · 0021</div>
+              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <div class="eyebrow">Featured Acquisitions</div>
+            <h1 class="title">Gray's Anatomy for Students</h1>
+            <div class="rule"></div>
+            <div class="byline">By <strong>Drake, Vogl, Mitchell</strong> · 4th Ed · Elsevier</div>
+            <div class="price-row">
+              <span class="price">₹3,295</span>
+              <span class="mrp">₹4,495</span>
+            </div>
+          </div>
+          <div class="archive-footer">
+            <span>PMB · MBBS · 2024 · 0021</span>
+            <span class="folio">Vol. VII · Folio 04 of 05</span>
+            <span>Pam Medical Books</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="page-inner">
+          <div class="chapter-mark">
+            <span class="eyebrow">Chapter</span>
+            <span class="roman">V</span>
+          </div>
+          <div class="still-life">
+            <div class="paper-card"></div>
+            <div class="cover c-tan">
+              <div class="publisher">Elsevier</div>
+              <div class="title">Bailey &amp; Love's Short Practice of Surgery</div>
+              <div class="author">Williams, Bulstrode, O'Connell</div>
+              <div class="edition">28th Ed</div>
+            </div>
+            <div class="dispatch-slip">
+              <div class="label">Dispatch slip</div>
+              <div class="code">PMB · MBBS · 2024 · 0058</div>
+              <div class="row"><span>Ahmedabad</span><span>2 w.d.</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <div class="eyebrow">Featured Acquisitions</div>
+            <h1 class="title">Bailey &amp; Love's Surgery</h1>
+            <div class="rule"></div>
+            <div class="byline">By <strong>Williams, Bulstrode</strong> · 28th Ed · Elsevier</div>
+            <div class="price-row">
+              <span class="price">₹6,995</span>
+              <span class="mrp">₹8,995</span>
+            </div>
+          </div>
+          <div class="archive-footer">
+            <span>PMB · MBBS · 2024 · 0058</span>
+            <span class="folio">Vol. VII · Folio 05 of 05</span>
+            <span>Pam Medical Books</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Initialize Turn.js once jQuery has loaded the book DOM.
+  // Single-page view (display: 'single') so each chapter occupies the full
+  // viewport — closest visual to the original hero composition.
+  function init() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    $('#book').turn({
+      width:  w,
+      height: h,
+      display: 'single',
+      acceleration: true,
+      gradients: true,
+      autoCenter: true,
+      duration: 1100,
+      when: {
+        turned: function(e, page) {
+          window.parent.postMessage({ type: 'pmb:flipped', page: page }, '*');
+        },
+        turning: function(e, page) {
+          window.parent.postMessage({ type: 'pmb:turning', page: page }, '*');
+        }
+      }
+    });
+
+    // Resize on parent dimension changes
+    window.addEventListener('resize', function() {
+      $('#book').turn('size', window.innerWidth, window.innerHeight);
+    });
+
+    // Listen for parent commands
+    window.addEventListener('message', function(ev) {
+      if (!ev.data || typeof ev.data !== 'object') return;
+      if (ev.data.type === 'pmb:next')  $('#book').turn('next');
+      if (ev.data.type === 'pmb:prev')  $('#book').turn('previous');
+      if (ev.data.type === 'pmb:goto')  $('#book').turn('page', ev.data.page);
+    });
+
+    // Tell the parent we're ready
+    window.parent.postMessage({ type: 'pmb:ready' }, '*');
+  }
+
+  // Wait for Turn.js to actually be loaded (CDN can be slow).
+  function ready() {
+    if (window.jQuery && window.jQuery.fn.turn) { init(); return; }
+    setTimeout(ready, 50);
+  }
+  document.addEventListener('DOMContentLoaded', ready);
+</script>
+</body>
+</html>

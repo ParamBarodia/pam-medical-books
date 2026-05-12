@@ -439,63 +439,53 @@ function prefersReducedMotion() {
 // using an animated CSS clip-path while a "fold shadow" pseudo-element grows
 // from the same edge to fake the curl. The next slide sits underneath, fully
 // rendered, and is gradually exposed as the peel progresses.
-// Hero — desk-shuffle transition.
-// On a turn, the OUT layer (the chapter we're leaving) lifts up-and-to-the-
-// side with a small rotation and fades, like a sheet of paper being slid
-// off a desk. The IN layer (the chapter we're going to) slides in from
-// the opposite corner with a slight rotation that settles into place.
-// All CSS, no DOM mutation libraries — React 18 safe.
-const TRANSITION_MS = 720;
-
+// Hero — embeds a real Turn.js book in an iframe.
+// React owns the iframe element only; Turn.js + jQuery own the document
+// inside the iframe. No DOM-reconciliation conflict — Turn.js can mutate
+// freely because React never touches the iframe's contents.
+// Parent ↔ iframe communicate via window.postMessage:
+//   parent → iframe: { type: 'pmb:next' | 'pmb:prev' | 'pmb:goto', page }
+//   iframe → parent: { type: 'pmb:ready' | 'pmb:flipped' | 'pmb:turning', page }
+const NUM_CHAPTERS = 5;
 export function Hero({ books = [], onAdd, onOpen }) {
   const slides = books.length ? books : [FALLBACK_HERO_BOOK];
-  const [index, setIndex] = useState(0);
-  const [prevIndex, setPrevIndex] = useState(null);
-  const [direction, setDirection] = useState('next');
-  const [turnCount, setTurnCount] = useState(0);
+  const [page, setPage] = useState(1);     // 1-indexed for Turn.js
   const [paused, setPaused] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
-  const animTimer = useRef(null);
-  const transitioningRef = useRef(false);
+  const [iframeReady, setIframeReady] = useState(false);
+  const iframeRef = useRef(null);
 
-  const turn = useCallback((target, dir) => {
-    if (transitioningRef.current || slides.length <= 1) return;
-    if (target === index) return;
-    transitioningRef.current = true;
-    setDirection(dir);
-    setPrevIndex(index);
-    setIndex(target);
-    setTurnCount((c) => c + 1);
-    clearTimeout(animTimer.current);
-    animTimer.current = setTimeout(() => {
-      setPrevIndex(null);
-      transitioningRef.current = false;
-    }, TRANSITION_MS + 40);
-  }, [index, slides.length]);
+  const send = useCallback((message) => {
+    const w = iframeRef.current?.contentWindow;
+    if (w) w.postMessage(message, '*');
+  }, []);
 
-  const goNext = useCallback(() => {
-    turn((index + 1) % slides.length, 'next');
-  }, [turn, index, slides.length]);
+  const goNext = useCallback(() => send({ type: 'pmb:next' }), [send]);
+  const goPrev = useCallback(() => send({ type: 'pmb:prev' }), [send]);
+  const goTo   = useCallback((target) => send({ type: 'pmb:goto', page: target + 1 }), [send]);
 
-  const goPrev = useCallback(() => {
-    turn((index - 1 + slides.length) % slides.length, 'prev');
-  }, [turn, index, slides.length]);
-
-  const goTo = useCallback((target) => {
-    if (target === index) return;
-    turn(target, target > index ? 'next' : 'prev');
-  }, [turn, index]);
-
-  useEffect(() => () => clearTimeout(animTimer.current), []);
-
-  // Auto-advance — paused on hover/focus or explicit toggle.
+  // Listen for messages FROM the iframe
   useEffect(() => {
-    if (paused || userPaused || slides.length <= 1) return;
-    const id = setInterval(goNext, SLIDE_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [paused, userPaused, slides.length, goNext]);
+    function onMessage(ev) {
+      const data = ev.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'pmb:ready')   setIframeReady(true);
+      if (data.type === 'pmb:flipped') setPage(data.page);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
 
-  const transitioning = prevIndex !== null;
+  // Auto-advance every 18s while not paused
+  useEffect(() => {
+    if (!iframeReady || paused || userPaused) return;
+    const id = setInterval(() => {
+      send({ type: 'pmb:next' });
+    }, SLIDE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [iframeReady, paused, userPaused, send]);
+
+  const index = page - 1;
 
   return (
     <section style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule)', padding: '24px 32px' }}>
@@ -505,97 +495,74 @@ export function Hero({ books = [], onAdd, onOpen }) {
           role="region"
           aria-roledescription="carousel"
           aria-label="Featured medical books"
-          tabIndex={0}
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
-          onFocus={() => setPaused(true)}
-          onBlur={() => setPaused(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
-            else if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
-            else if (e.key === ' ' || e.key === 'p') { e.preventDefault(); setUserPaused((p) => !p); }
-          }}
           style={{
             position: 'relative',
-            minHeight: 560,
+            height: 580,
             background: 'var(--paper-deep)',
             overflow: 'hidden',
           }}
         >
-          {/* OUT layer — only rendered during a transition. Key on turnCount
-              so each turn creates a fresh element and re-fires the animation. */}
-          {transitioning && (
-            <div key={`out-${turnCount}`}
-                 className={`ms-hero-stack ms-hero-stack-out-${direction}`}
-                 aria-hidden="true">
-              <HeroPageContent book={slides[prevIndex]} onAdd={onAdd} onOpen={onOpen}
-                chapter={prevIndex + 1} total={slides.length} />
-            </div>
-          )}
-          {/* IN layer — always rendered. Key on turnCount so the IN animation
-              re-fires on every turn. Animation class is only applied during
-              the transition window; when idle the stack sits at its rest
-              transform (no animation). */}
-          <div key={`in-${turnCount}`}
-               className={`ms-hero-stack ${transitioning ? `ms-hero-stack-in-${direction}` : ''}`}>
-            <HeroPageContent book={slides[index]} onAdd={onAdd} onOpen={onOpen}
-              chapter={index + 1} total={slides.length} />
-          </div>
+          <iframe
+            ref={iframeRef}
+            src="/turn-book.html"
+            title="Archive viewer"
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              border: 0, background: 'var(--paper-deep)',
+            }}
+          />
 
-          {slides.length > 1 && (
-            <>
-              <button onClick={goPrev} aria-label="Previous chapter"
-                className="ms-hero-nav" style={{ left: 16 }}>
-                <Icon name="arrow-right" size={18} style={{ transform: 'rotate(180deg)' }} />
-              </button>
-              <button onClick={goNext} aria-label="Next chapter"
-                className="ms-hero-nav" style={{ right: 16 }}>
-                <Icon name="arrow-right" size={18} />
-              </button>
-              <button
-                onClick={() => setUserPaused((p) => !p)}
-                aria-label={userPaused ? 'Resume auto-advance' : 'Pause auto-advance'}
-                aria-pressed={userPaused}
-                className="ms-hero-nav"
-                style={{ right: 16, top: 16, transform: 'none', width: 36, height: 36 }}>
-                <Icon name={userPaused ? 'play' : 'pause'} size={14} />
-              </button>
-            </>
-          )}
+          <button onClick={goPrev} aria-label="Previous chapter"
+            className="ms-hero-nav" style={{ left: 16 }}>
+            <Icon name="arrow-right" size={18} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+          <button onClick={goNext} aria-label="Next chapter"
+            className="ms-hero-nav" style={{ right: 16 }}>
+            <Icon name="arrow-right" size={18} />
+          </button>
+          <button
+            onClick={() => setUserPaused((p) => !p)}
+            aria-label={userPaused ? 'Resume auto-advance' : 'Pause auto-advance'}
+            aria-pressed={userPaused}
+            className="ms-hero-nav"
+            style={{ right: 16, top: 16, transform: 'none', width: 36, height: 36 }}>
+            <Icon name={userPaused ? 'play' : 'pause'} size={14} />
+          </button>
 
           <div role="status" aria-live="polite" className="sr-only">
-            Chapter {index + 1} of {slides.length}: {slides[index]?.title}
+            Chapter {page} of {NUM_CHAPTERS}
           </div>
 
-          {slides.length > 1 && (
-            <div role="tablist" aria-label="Choose a chapter" style={{
-              position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-              display: 'flex', gap: 20, alignItems: 'center', zIndex: 10,
-            }}>
-              {slides.map((_, i) => (
-                <button key={i}
-                  onClick={() => goTo(i)}
-                  role="tab"
-                  aria-selected={i === index}
-                  aria-current={i === index ? 'true' : undefined}
-                  aria-label={`Chapter ${i + 1}`}
-                  className={i === index ? 'ms-hand-underline' : ''}
-                  style={{
-                    fontFamily: 'var(--serif)',
-                    fontSize: i === index ? 18 : 14,
-                    fontStyle: 'italic',
-                    fontWeight: 500,
-                    color: i === index ? 'var(--oxblood)' : 'var(--muted)',
-                    background: 'transparent', border: 'none', padding: '4px 2px',
-                    cursor: 'pointer',
-                    transition: 'font-size 280ms var(--ease-micro), color 280ms var(--ease-micro)',
-                    minWidth: 24,
-                  }}>
-                  {toRoman(i + 1)}
-                </button>
-              ))}
-            </div>
-          )}
+          <div role="tablist" aria-label="Choose a chapter" style={{
+            position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 20, alignItems: 'center', zIndex: 10,
+          }}>
+            {Array.from({ length: NUM_CHAPTERS }).map((_, i) => (
+              <button key={i}
+                onClick={() => goTo(i)}
+                role="tab"
+                aria-selected={i === index}
+                aria-current={i === index ? 'true' : undefined}
+                aria-label={`Chapter ${i + 1}`}
+                className={i === index ? 'ms-hand-underline' : ''}
+                style={{
+                  fontFamily: 'var(--serif)',
+                  fontSize: i === index ? 18 : 14,
+                  fontStyle: 'italic',
+                  fontWeight: 500,
+                  color: i === index ? 'var(--oxblood)' : 'var(--muted)',
+                  background: 'transparent', border: 'none', padding: '4px 2px',
+                  cursor: 'pointer',
+                  transition: 'font-size 280ms var(--ease-micro), color 280ms var(--ease-micro)',
+                  minWidth: 24,
+                }}>
+                {toRoman(i + 1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="ms-quick-pills" style={{
