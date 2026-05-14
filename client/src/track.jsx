@@ -1,8 +1,9 @@
 // /track — public order lookup by phone.
 // No auth: phone is the lookup key. Each order shows status, carrier link,
 // and (in-window) buttons to request return / cancellation.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from './api.js';
+import { useDialogFocus } from './hooks.js';
 import { Footer, Icon } from './components.jsx';
 
 const STATUS_COLORS = {
@@ -62,15 +63,21 @@ export default function TrackPage() {
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
           <div style={{ flex: 1, position: 'relative' }}>
-            <span className="mono" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>+91</span>
+            <label htmlFor="track-phone-input" className="sr-only">Phone number used at checkout</label>
+            <span className="mono" aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>+91</span>
             <input
+              id="track-phone-input"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
               value={phone}
               onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
               onKeyDown={e => e.key === 'Enter' && lookup()}
               placeholder="98765 43210"
+              aria-label="Phone number"
               style={{ width: '100%', padding: '14px 14px 14px 50px', fontSize: 16,
                 fontFamily: 'var(--serif)', background: 'var(--paper)',
-                border: '1px solid var(--rule-soft)', outline: 'none' }} />
+                border: '1px solid var(--rule-soft)' }} />
           </div>
           <button onClick={lookup} disabled={loading} className="sans"
             style={{ background: 'var(--accent)', color: 'var(--paper)', padding: '14px 24px',
@@ -84,7 +91,7 @@ export default function TrackPage() {
           <div style={{ marginTop: 32 }}>
             {orders.length === 0 ? (
               <div style={{ background: 'var(--paper)', padding: 40, textAlign: 'center', border: '1px solid var(--rule-soft)' }}>
-                <Icon name="package" size={32} />
+                <Icon name="package" size={32} aria-label="No orders" />
                 <div className="display" style={{ fontSize: 18, marginTop: 12 }}>No orders found</div>
                 <div className="serif" style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6 }}>
                   Make sure you typed the same phone number you used at checkout.
@@ -97,9 +104,12 @@ export default function TrackPage() {
                   <div key={o.id} style={{ background: 'var(--paper)', border: '1px solid var(--rule-soft)', padding: 20, marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
                       <span className="mono" style={{ fontSize: 14, fontWeight: 700 }}>{o.id}</span>
-                      <span className="sans" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+                      <span className="sans" role="status"
+                        aria-label={`Order status: ${STATUS_LABEL[o.status] || o.status}`}
+                        style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
                         textTransform: 'uppercase', color: STATUS_COLORS[o.status] || 'var(--ink-2)' }}>
-                        ● {STATUS_LABEL[o.status] || o.status}
+                        <span aria-hidden="true">{['cancelled', 'refunded'].includes(o.status) ? '✕ ' : '● '}</span>
+                        {STATUS_LABEL[o.status] || o.status}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
@@ -142,43 +152,54 @@ function OrderDetailModal({ orderId, phone, onClose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reasonModal, setReasonModal] = useState(null); // { kind: 'return' | 'cancel' }
+  const [reason, setReason] = useState('');
+  const [opError, setOpError] = useState('');
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     api.orderDetail(orderId, phone).then(setData).catch(e => setError(e.message));
   }, [orderId, phone]);
 
-  const requestReturn = async () => {
-    const reason = window.prompt('Reason for return?');
-    if (!reason) return;
-    setBusy(true);
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+  useDialogFocus(dialogRef, onClose);
+
+  const submitReason = async () => {
+    if (!reason.trim()) { setOpError('Please give a brief reason.'); return; }
+    setBusy(true); setOpError('');
     try {
-      await api.requestReturn(orderId, phone, reason);
+      if (reasonModal.kind === 'return') await api.requestReturn(orderId, phone, reason);
+      else await api.requestCancellation(orderId, phone, reason);
       const fresh = await api.orderDetail(orderId, phone);
       setData(fresh);
-    } catch (e) { alert(e.data?.error || e.message); }
+      setReasonModal(null); setReason('');
+    } catch (e) { setOpError(e.data?.error || e.message || 'Could not submit'); }
     finally { setBusy(false); }
   };
 
-  const requestCancel = async () => {
-    const reason = window.prompt('Reason for cancellation?');
-    if (!reason) return;
-    setBusy(true);
-    try {
-      await api.requestCancellation(orderId, phone, reason);
-      const fresh = await api.orderDetail(orderId, phone);
-      setData(fresh);
-    } catch (e) { alert(e.data?.error || e.message); }
-    finally { setBusy(false); }
-  };
+  const requestReturn = () => { setReason(''); setOpError(''); setReasonModal({ kind: 'return' }); };
+  const requestCancel = () => { setReason(''); setOpError(''); setReasonModal({ kind: 'cancel' }); };
 
   if (error) return null;
-  if (!data) return <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100 }} onClick={onClose} />;
+  if (!data) return (
+    <div onClick={onClose} role="status" aria-live="polite"
+      style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.78)', zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        fontFamily: 'var(--serif)', fontStyle: 'italic', color: 'var(--paper)',
+        fontSize: 16, letterSpacing: '0.02em', opacity: 0.85,
+      }}>Loading order details…</div>
+    </div>
+  );
 
   const canCancel = ['placed', 'paid'].includes(data.status) && !data.cancellationRequest;
   const canReturn = data.status === 'delivered' && (Date.now() - data.updated_at < 7 * 86400000) && !data.returnRequest;
 
   return (
-    <div onClick={onClose} role="dialog" aria-modal="true"
+    <div onClick={onClose} role="dialog" aria-modal="true" ref={dialogRef} tabIndex={-1}
       style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.78)', zIndex: 100,
         overflowY: 'auto', padding: '40px 20px' }}>
       <div onClick={e => e.stopPropagation()} style={{
@@ -237,6 +258,37 @@ function OrderDetailModal({ orderId, phone, onClose }) {
           </div>
         </div>
       </div>
+
+      {reasonModal && (
+        <div onClick={() => !busy && setReasonModal(null)} role="dialog" aria-modal="true"
+          aria-labelledby="reason-title"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.85)', zIndex: 110,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 460, background: 'var(--paper)',
+              padding: '28px 32px', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.6)' }}>
+            <div className="t-eyebrow" style={{ color: 'var(--muted)' }}>{reasonModal.kind === 'return' ? 'Return request' : 'Cancellation request'}</div>
+            <h3 id="reason-title" className="display" style={{ fontSize: 22, fontWeight: 500, margin: '6px 0 12px' }}>
+              {reasonModal.kind === 'return' ? 'Why are you returning?' : 'Why are you cancelling?'}
+            </h3>
+            <label htmlFor="reason-input" className="sr-only">Reason</label>
+            <textarea id="reason-input" autoFocus value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder={reasonModal.kind === 'return' ? 'Damaged on arrival, wrong edition, etc.' : 'Changed my mind, found cheaper, etc.'}
+              rows={4}
+              style={{ width: '100%', padding: '12px 14px', fontSize: 14, fontFamily: 'var(--serif)',
+                background: 'var(--paper-2)', border: '1px solid var(--rule-soft)', color: 'var(--ink)',
+                resize: 'vertical', minHeight: 90 }} />
+            {opError && <div className="serif" style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)', fontStyle: 'italic' }}>{opError}</div>}
+            <div style={{ marginTop: 18, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setReasonModal(null)} disabled={busy} className="ms-btn-link" style={{ color: 'var(--muted)' }}>Cancel</button>
+              <button onClick={submitReason} disabled={busy || !reason.trim()} className="ms-btn ms-btn-primary" style={{ padding: '10px 18px', fontSize: 12 }}>
+                {busy ? 'Submitting…' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

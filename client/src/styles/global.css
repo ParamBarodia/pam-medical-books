@@ -73,7 +73,7 @@
 /* ─── Type-scale utility classes ─── */
 .t-display-xl {
   font-family: var(--serif); font-weight: 500;
-  font-size: var(--t-display-xl); line-height: 0.98;
+  font-size: var(--t-display-xl); line-height: 1.04;
   letter-spacing: -0.028em; color: var(--ink-deep);
   font-variation-settings: "opsz" 144;
   font-feature-settings: "ss01", "lnum";
@@ -92,7 +92,7 @@
 }
 .t-body-l { font-size: var(--t-body-l); line-height: 1.6; }
 .t-body   { font-size: var(--t-body);   line-height: 1.6; }
-.t-meta   { font-size: var(--t-meta);   line-height: 1.5; color: var(--muted); font-style: italic; }
+.t-meta   { font-size: var(--t-meta);   line-height: 1.6; color: var(--ink-2); }
 .t-mono   { font-family: var(--mono); font-size: var(--t-mono); font-feature-settings: "tnum","lnum"; }
 .t-eyebrow {
   font-family: var(--sans); font-size: var(--t-eyebrow);
@@ -162,6 +162,9 @@ body { background-image:
   linear-gradient(120deg, rgba(200, 137, 62, 0.04) 0%, transparent 38%, rgba(28, 20, 12, 0.05) 100%);
   background-attachment: fixed;
 }
+@media (max-width: 768px) {
+  body { background-attachment: scroll; }
+}
 /* All interactive content sits above grain layers */
 header, main, footer, [role="dialog"], [role="status"] { position: relative; z-index: 2; }
 
@@ -206,7 +209,8 @@ html.js-revealing-on .ms-reveal:not(.is-visible) {
 }
 
 *:focus { outline: none; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible,
+select:focus-visible, summary:focus-visible,
 [role="button"]:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--accent) !important;
   outline-offset: 2px !important;
@@ -267,7 +271,10 @@ html { scroll-behavior: smooth; }
   .ms-hero-h1 { font-size: clamp(32px, 8vw, 44px) !important; }
   .ms-hero-visual { display: none !important; }
   .ms-modal-grid { grid-template-columns: 1fr !important; }
-  .ms-cart-drawer { width: 100vw !important; }
+  .ms-cart-drawer { left: 0 !important; width: auto !important; }
+  .ms-hero-banner { height: 420px !important; }
+  .ms-trustbar-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+  .ms-section-head h2 { font-size: clamp(24px, 7vw, 32px) !important; }
   .ms-section-head { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
   .ms-section-head h2 { font-size: 28px !important; }
   .ms-trustbar-grid { grid-template-columns: repeat(2, 1fr) !important; }
@@ -288,6 +295,19 @@ html { scroll-behavior: smooth; }
 }
 
 [role="button"] { cursor: pointer; }
+
+/* ─── Category buttons (in the secondary navbar row) ─── */
+.ms-cat-btn {
+  padding: 14px 18px;
+  transition: color var(--dur-micro) var(--ease-micro), background var(--dur-micro) var(--ease-micro);
+}
+@media (hover: hover) {
+  .ms-cat-btn:hover:not(.is-active) { color: var(--ink-deep); }
+}
+.ms-cat-btn:focus-visible { background: var(--paper-2); color: var(--ink-deep); }
+@media (max-width: 500px) {
+  .ms-cat-btn { padding: 10px 12px; font-size: 13px !important; }
+}
 
 /* ════════════════════════════════════════════════════════════════════════
    BUTTON EFFECT SYSTEM — editorial paper-warm + Indian retail
@@ -321,7 +341,14 @@ html { scroll-behavior: smooth; }
   -webkit-tap-highlight-color: transparent;
 }
 .ms-btn:active { transform: translateY(1px); }
-.ms-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+.ms-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  background: var(--paper-3);
+  color: var(--muted);
+  box-shadow: none;
+}
 
 /* The arrow inside any button — nudges right on hover */
 .ms-btn .ms-arrow {
@@ -354,7 +381,7 @@ html { scroll-behavior: smooth; }
   color: var(--paper);
 }
 .ms-btn-ink:hover {
-  background: #000;
+  background: var(--ink-deep);
   transform: translateY(-1px);
   box-shadow: 0 8px 22px -10px rgba(0, 0, 0, 0.5);
 }
@@ -451,7 +478,7 @@ html { scroll-behavior: smooth; }
 
 /* ─── Icon-only round (the "+" add button on book cards) ─── */
 .ms-btn-icon {
-  width: 32px; height: 32px;
+  width: 44px; height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent;
   border: 1px solid var(--accent);
@@ -710,6 +737,10 @@ html { scroll-behavior: smooth; }
   transition: opacity 220ms ease, background 180ms ease, transform 180ms ease;
 }
 .ms-hero-banner:hover .ms-hero-nav { opacity: 1; }
+/* Touch devices have no hover — keep arrows visible so users see the carousel is interactive */
+@media (hover: none) {
+  .ms-hero-nav { opacity: 0.95; }
+}
 .ms-hero-nav:hover {
   background: var(--paper);
   transform: translateY(-50%) scale(1.08);

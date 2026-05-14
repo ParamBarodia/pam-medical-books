@@ -47,7 +47,10 @@ export default function App() {
 }
 
 function Storefront() {
-  const cart = useCart();
+  // showToast is defined below; thread it into useCart via a ref so the hook
+  // can fire feedback when the per-item cap (50) is hit.
+  const onCapRef = React.useRef();
+  const cart = useCart({ onCap: (item) => onCapRef.current?.(item) });
 
   const fetchShelf = (shelf) => SANITY_ENABLED ? fetchBooksByShelf(shelf) : api.books({ shelf });
   const featured     = useFetch(() => fetchShelf('featured'), []);
@@ -86,6 +89,7 @@ function Storefront() {
     setToast({ text, accent, id: Date.now() });
     setTimeout(() => setToast(null), 2400);
   };
+  onCapRef.current = (item) => showToast(`Max 50 per item — "${(item.title || '').slice(0, 30)}…" stays at 50`, 'amber');
 
   const handleAdd = (book) => {
     cart.add(book);
@@ -142,7 +146,7 @@ function Storefront() {
               onAdd={handleAdd} onOpen={setProductOpen}
             />
             <SectionOrnament variant="chapter" />
-            <CourseTiles />
+            <CourseTiles onSelectCategory={setActiveCategory} />
             <SectionOrnament variant="leaf" />
             <BookGrid
               eyebrow="Bestsellers · This Semester" title="What everyone's reading right now."
@@ -171,6 +175,7 @@ function Storefront() {
           book={productOpen}
           onClose={() => setProductOpen(null)}
           onAdd={() => handleAdd(productOpen)}
+          onNotify={(b) => { setProductOpen(null); setNotifyBook(b); }}
         />
       )}
       {cartOpen && (
@@ -199,7 +204,9 @@ function Storefront() {
           }}
         />
       )}
-      {toast && <Toast key={toast.id} text={toast.text} accent={toast.accent} />}
+      {toast && <Toast key={toast.id} text={toast.text} accent={toast.accent}
+        liftAbove={cartOpen}
+        onDismiss={() => setToast(null)} />}
     </>
   );
 }
@@ -222,29 +229,57 @@ function SearchResults({ books, loading, query, category, onClear, onAdd, onOpen
         <div className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 32 }}>
           {loading ? 'Searching…' : `${books.length} ${books.length === 1 ? 'book' : 'books'} found`}
         </div>
-        <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
-          {books.map(b => (
-            <BookCard key={b.id} book={b}
-              onAdd={() => onAdd(b)} onOpen={() => onOpen(b)} />
-          ))}
-        </div>
+        {!loading && books.length === 0 ? (
+          <div style={{
+            background: 'var(--paper)', border: '1px dashed var(--rule-soft)',
+            padding: '56px 24px', textAlign: 'center',
+          }}>
+            <div className="display" style={{ fontSize: 22, fontWeight: 500, marginBottom: 6 }}>
+              Nothing found in this shelf.
+            </div>
+            <p className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic', margin: '0 0 18px' }}>
+              {query ? <>No books match "<strong style={{ color: 'var(--ink)', fontStyle: 'normal' }}>{query}</strong>"{category !== 'All' && <> in <strong style={{ color: 'var(--ink)', fontStyle: 'normal' }}>{category}</strong></>}.</> : <>No {category} books on the shelf yet.</>}
+              {' '}Try a different spelling, ISBN, or clear the filters.
+            </p>
+            <button onClick={onClear} className="ms-btn ms-btn-ghost" style={{ padding: '10px 22px', fontSize: 13 }}>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="ms-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
+            {books.map(b => (
+              <BookCard key={b.id} book={b}
+                onAdd={() => onAdd(b)} onOpen={() => onOpen(b)} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-function Toast({ text, accent }) {
+function Toast({ text, accent, onDismiss, liftAbove }) {
   const color = accent === 'teal' ? 'var(--accent)' : 'var(--saffron)';
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape' && onDismiss) onDismiss(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onDismiss]);
   return (
-    <div className="toast-enter ms-toast" role="status" aria-live="polite" style={{
-      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+    <div className="toast-enter ms-toast" role="status" aria-live="polite"
+      onClick={onDismiss}
+      title="Dismiss"
+      style={{
+      position: 'fixed', bottom: liftAbove ? 96 : 24, left: '50%', transform: 'translateX(-50%)',
       background: 'var(--ink)', color: 'var(--paper)', zIndex: 100,
       padding: '12px 18px', border: `1px solid ${color}`,
       boxShadow: '0 16px 40px -10px rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 500,
-      maxWidth: 'calc(100vw - 32px)', fontFamily: 'var(--serif)',
+      maxWidth: 'min(420px, calc(100vw - 32px))', fontFamily: 'var(--serif)',
+      cursor: 'pointer',
     }}>
-      <span style={{ color, fontSize: 14 }}>◆</span> {text}
+      <span style={{ color, fontSize: 14, flexShrink: 0 }}>◆</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{text}</span>
     </div>
   );
 }
