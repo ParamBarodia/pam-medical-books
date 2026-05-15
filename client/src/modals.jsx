@@ -26,7 +26,7 @@ function loadRazorpayScript() {
 // ────────────────────────────────────────────────────────────────────────────
 // ProductModal
 // ────────────────────────────────────────────────────────────────────────────
-export function ProductModal({ book, onClose, onAdd }) {
+export function ProductModal({ book, onClose, onAdd, onNotify }) {
   const [tab, setTab] = useState('description');
   const dialogRef = useRef(null);
   const discount = Math.round((1 - book.price / book.mrp) * 100);
@@ -100,11 +100,19 @@ export function ProductModal({ book, onClose, onAdd }) {
               )}
             </div>
             <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--rule-soft)', display: 'flex', gap: 12 }}>
-              <button onClick={() => { onAdd(); onClose(); }} disabled={stock === 0}
-                className={`ms-btn ${stock === 0 ? '' : 'ms-btn-primary'}`}
-                style={{ flex: 1, padding: 14, fontSize: 12, ...(stock === 0 ? { background: '#cbd5e1', color: 'var(--paper)' } : {}) }}>
-                <Icon name="cart" size={14} /> {stock === 0 ? 'Notify Me' : 'Add to Cart'}
-              </button>
+              {stock === 0 ? (
+                <button onClick={() => { if (onNotify) onNotify(book); else onClose(); }}
+                  className="ms-btn ms-btn-ghost"
+                  style={{ flex: 1, padding: 14, fontSize: 12 }}>
+                  <Icon name="package" size={14} /> Notify Me When Back
+                </button>
+              ) : (
+                <button onClick={() => { onAdd(); onClose(); }}
+                  className="ms-btn ms-btn-primary"
+                  style={{ flex: 1, padding: 14, fontSize: 12 }}>
+                  <Icon name="cart" size={14} /> Add to Cart
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -124,6 +132,10 @@ export function CartDrawer({ items, onUpdateQty, onClose, onCheckout }) {
   const shipping = subtotal >= 999 ? 0 : 49;
   const total    = subtotal - tier + shipping;
   useDialogFocus(dialogRef, onClose);
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,26,20,0.7)', zIndex: 90, animation: 'fade .2s ease-out' }}>
@@ -254,6 +266,22 @@ export function CheckoutModal({ items, onClose, onComplete }) {
     return () => { document.body.style.overflow = ''; };
   }, []);
   useDialogFocus(dialogRef, () => { if (step !== STEP.DONE) onClose(); });
+
+  // Re-focus the first interactive field whenever the step changes,
+  // so keyboard users land on the right element after pressing Continue.
+  useEffect(() => {
+    if (!dialogRef.current) return;
+    const focusables = dialogRef.current.querySelectorAll(
+      'input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])'
+    );
+    // Skip the close button (first in the dialog) and find the first form control.
+    const target = Array.from(focusables).find(el => el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')
+                   || focusables[0];
+    if (target) {
+      const id = requestAnimationFrame(() => target.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [step]);
 
   const phoneValid = /^\d{10}$/.test(phone.replace(/\D/g, ''));
   const addrValid  = useSavedAddress
@@ -517,7 +545,7 @@ export function CheckoutModal({ items, onClose, onComplete }) {
                 color: 'var(--success)', margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="check" size={40} stroke={3} />
               </div>
-              <h3 className="display" style={{ fontSize: 30, fontWeight: 500, margin: '0 0 8px' }}>Order placed!</h3>
+              <h2 className="display" style={{ fontSize: 30, fontWeight: 500, margin: '0 0 8px' }}>Order placed!</h2>
               <p className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic', margin: '0 0 24px' }}>
                 Confirmation sent to <strong style={{ color: 'var(--ink)', fontStyle: 'normal' }}>+91 {phone}</strong>
               </p>
@@ -579,23 +607,24 @@ export function CheckoutModal({ items, onClose, onComplete }) {
 
 function Field({ label, value, onChange, type = 'text', span = 1, placeholder,
                  autoComplete, inputMode, hint, suffix }) {
+  const fieldId = React.useId();
   return (
-    <label style={{ gridColumn: `span ${span}`, display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-      <span className="sans" style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.04em' }}>{label}</span>
+    <div style={{ gridColumn: `span ${span}`, display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+      <label htmlFor={fieldId} className="sans" style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.04em' }}>{label}</label>
       <div style={{ position: 'relative' }}>
-        <input type={type} value={value} placeholder={placeholder}
+        <input id={fieldId} type={type} value={value} placeholder={placeholder}
           autoComplete={autoComplete}
           inputMode={inputMode}
           onChange={e => onChange(e.target.value)}
           style={{ width: '100%', padding: '12px 14px', fontSize: 14, fontFamily: 'var(--serif)',
-            background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)', outline: 'none' }} />
+            background: 'var(--paper)', border: '1px solid var(--rule-soft)', color: 'var(--ink)' }} />
         {suffix && (
           <span className="sans" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
             fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>{suffix}</span>
         )}
       </div>
       {hint && <span className="serif" style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>{hint}</span>}
-    </label>
+    </div>
   );
 }
 
@@ -649,7 +678,7 @@ export function NotifyModal({ book, onClose, onSubmit }) {
             onKeyDown={(e) => e.key === 'Enter' && submit()}
             style={{
               flex: 1, padding: '14px 12px', fontSize: 16, fontFamily: 'var(--serif)',
-              background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)',
+              background: 'transparent', border: 'none', color: 'var(--ink)',
             }} />
         </div>
         {err && <div className="serif" style={{ marginTop: 10, fontSize: 12, color: 'var(--oxblood)', fontStyle: 'italic' }}>{err}</div>}

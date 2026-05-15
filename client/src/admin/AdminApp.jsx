@@ -250,8 +250,10 @@ function StockTab() {
   return (
     <div>
       <H title="Stock" />
-      <input value={q} onChange={e => setQ(e.target.value)}
+      <label htmlFor="admin-stock-search" className="sr-only">Search stock by title, ISBN, or author</label>
+      <input id="admin-stock-search" value={q} onChange={e => setQ(e.target.value)}
         placeholder="Search title / ISBN / author"
+        aria-label="Search stock"
         style={{ width: '100%', padding: 12, fontSize: 14, border: `1px solid ${RULE}`, marginBottom: 14, background: HEADER_BG }} />
       {books === null && <div style={{ color: MUTED, fontSize: 13 }}>Loading…</div>}
       {books?.map(b => (
@@ -261,7 +263,9 @@ function StockTab() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Btn small variant="ghost" onClick={() => adjust(b.id, -1)}>−</Btn>
             <button onClick={() => setExact(b.id, b.stock)}
-              style={{ fontSize: 18, fontWeight: 700, padding: '6px 14px', background: PAPER, border: `1px solid ${RULE}`, minWidth: 60 }}>
+              aria-label={`Current stock for ${b.title}: ${b.stock}. Click to set an exact value.`}
+              title="Click to set exact stock"
+              style={{ fontSize: 18, fontWeight: 700, padding: '6px 14px', background: PAPER, border: `1px solid ${RULE}`, borderStyle: 'dashed', minWidth: 60, cursor: 'pointer' }}>
               {b.stock}
             </button>
             <Btn small variant="ghost" onClick={() => adjust(b.id, +1)}>+</Btn>
@@ -342,14 +346,15 @@ function IsbnAdd() {
           <div style={{ fontSize: 14, fontWeight: 600 }}>{preview.title}</div>
           <div style={{ fontSize: 12, color: MUTED }}>{preview.author} · {preview.publisher || '—'}</div>
           <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>via {preview.source} · {preview.pages || '?'} pages</div>
-          {preview.coverUrl && <img src={preview.coverUrl} alt="" style={{ marginTop: 10, width: 80, height: 'auto', border: `1px solid ${RULE}` }} />}
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {preview.coverUrl && <img src={preview.coverUrl} alt={`Cover for ${preview.title}`} style={{ marginTop: 10, width: 80, height: 'auto', border: `1px solid ${RULE}` }} />}
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>
             <Input label="MRP ₹" value={extra.mrp} onChange={v => setExtra(e => ({ ...e, mrp: v.replace(/\D/g, '') }))} inputMode="numeric" />
             <Input label="Price ₹" value={extra.price} onChange={v => setExtra(e => ({ ...e, price: v.replace(/\D/g, '') }))} inputMode="numeric" />
             <Input label="Stock" value={extra.stock} onChange={v => setExtra(e => ({ ...e, stock: v.replace(/\D/g, '') }))} inputMode="numeric" />
           </div>
           <div style={{ marginTop: 8 }}>
-            <select value={extra.category} onChange={e => setExtra(x => ({ ...x, category: e.target.value }))}
+            <label htmlFor="admin-isbn-category" style={{ display: 'block', fontSize: 11, color: MUTED, marginBottom: 4 }}>Category</label>
+            <select id="admin-isbn-category" value={extra.category} onChange={e => setExtra(x => ({ ...x, category: e.target.value }))}
               style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: HEADER_BG }}>
               {['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'].map(c => <option key={c}>{c}</option>)}
             </select>
@@ -384,13 +389,14 @@ function ManualAdd() {
       <Input label="Edition" value={b.edition} onChange={set('edition')} />
       <Input label="ISBN" value={b.isbn} onChange={set('isbn')} />
       <Input label="Publisher" value={b.publisher} onChange={set('publisher')} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>
         <Input label="MRP" value={b.mrp} onChange={v => set('mrp')(v.replace(/\D/g, ''))} inputMode="numeric" />
         <Input label="Price" value={b.price} onChange={v => set('price')(v.replace(/\D/g, ''))} inputMode="numeric" />
         <Input label="Stock" value={b.stock} onChange={v => set('stock')(v.replace(/\D/g, ''))} inputMode="numeric" />
       </div>
-      <select value={b.category} onChange={e => set('category')(e.target.value)}
-        style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: HEADER_BG, marginTop: 8 }}>
+      <label htmlFor="admin-manual-category" style={{ display: 'block', fontSize: 11, color: MUTED, marginTop: 8, marginBottom: 4 }}>Category</label>
+      <select id="admin-manual-category" value={b.category} onChange={e => set('category')(e.target.value)}
+        style={{ width: '100%', padding: 10, fontSize: 14, border: `1px solid ${RULE}`, background: HEADER_BG }}>
         {['MBBS', 'BDS', 'Nursing', 'NEET-PG', 'MD/MS', 'Faculty'].map(c => <option key={c}>{c}</option>)}
       </select>
       {err && <div style={{ marginTop: 8, fontSize: 13, color: ACCENT }}>{err}</div>}
@@ -500,7 +506,8 @@ function Drawer({ children, onClose, title }) {
         padding: 20, borderRadius: '16px 16px 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="display" style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
-          <button onClick={onClose} style={{ fontSize: 20, color: MUTED, padding: 6 }}>✕</button>
+          <button onClick={onClose} aria-label="Close dialog"
+            style={{ fontSize: 22, color: MUTED, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         {children}
       </div>

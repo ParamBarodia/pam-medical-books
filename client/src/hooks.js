@@ -65,13 +65,16 @@ const CART_KEY = 'pmb_cart';
 function readCart() { try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch { return []; } }
 function writeCart(items) { try { localStorage.setItem(CART_KEY, JSON.stringify(items)); } catch {} }
 
-export function useCart() {
+export function useCart({ onCap } = {}) {
   const [items, setItems] = useState(readCart);
+  const onCapRef = useRef(onCap);
+  onCapRef.current = onCap;
 
   const add = useCallback((book, qty = 1) => {
     const isBundle = book.isBundle || !!book.books;
     setItems(prev => {
       const ex = prev.find(p => p.id === book.id && p.isBundle === isBundle);
+      if (ex && ex.qty + qty > 50) onCapRef.current?.(ex);
       const next = ex
         ? prev.map(p => (p === ex ? { ...p, qty: Math.min(p.qty + qty, 50) } : p))
         : [...prev, {
@@ -92,7 +95,7 @@ export function useCart() {
         if (p.id !== bookId || p.isBundle !== isBundle) return [p];
         const newQty = p.qty + delta;
         if (newQty <= 0) return [];
-        if (newQty > 50) return [p];
+        if (newQty > 50) { onCapRef.current?.(p); return [p]; }
         return [{ ...p, qty: newQty }];
       });
       writeCart(next);

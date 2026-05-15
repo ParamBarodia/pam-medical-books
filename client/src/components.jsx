@@ -199,7 +199,7 @@ export function BookCover({ book, width = 138, height = 196 }) {
     return (
       <img
         src={realImageUrl}
-        alt={`${book.title} cover`}
+        alt={book?.title ? `${book.title} cover` : 'Book cover'}
         loading="lazy"
         width={width}
         height={height}
@@ -302,7 +302,7 @@ export function Navbar({ cartCount = 0, query, setQuery, activeCategory, setActi
     <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)' }}>
       <div className="ms-container ms-navbar-row" style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 32px',
         display: 'flex', alignItems: 'center', gap: 32 }}>
-        <a href="#" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, flexShrink: 0 }}>
+        <a href="/" aria-label="Pam Medical Books — home" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, flexShrink: 0 }}>
           <span className="display" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
             Pam Medical Books<span style={{ color: 'var(--accent)' }}>.</span>
           </span>
@@ -350,14 +350,13 @@ function SearchBar({ query, setQuery }) {
       boxShadow: focused ? '0 0 0 3px rgba(139,42,31,0.15)' : 'none',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px 0 18px', height: 48 }}>
-        <span className="serif" aria-hidden="true" style={{ fontSize: 16, fontStyle: 'italic', color: 'var(--muted)', marginRight: 8 }}>"</span>
         <input
           type="text" value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           placeholder="Search by title, author, or ISBN"
           aria-label="Search books"
-          style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent',
+          style={{ flex: 1, border: 'none', background: 'transparent',
             padding: '0 10px', fontSize: 15, fontFamily: 'var(--serif)', color: 'var(--ink)' }}
         />
         <button type="submit" className="ms-btn-search">Search</button>
@@ -377,9 +376,9 @@ function NavIcon({ icon, label, badge, highlight, onClick }) {
         {badge > 0 && (
           <span aria-hidden="true" style={{ position: 'absolute', top: -6, right: -8,
             background: 'var(--accent)', color: 'var(--paper)', fontSize: 10, fontWeight: 700,
-            minWidth: 16, height: 16, padding: '0 4px',
-            borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid var(--paper)' }}>{badge}</span>
+            minWidth: 18, height: 18, padding: '0 5px', lineHeight: 1,
+            borderRadius: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid var(--paper)', boxSizing: 'content-box' }}>{badge > 99 ? '99+' : badge}</span>
         )}
       </span>
       <span style={{ fontSize: 11, fontFamily: 'var(--sans)' }}>{label}</span>
@@ -388,21 +387,18 @@ function NavIcon({ icon, label, badge, highlight, onClick }) {
 }
 
 function CatBtn({ label, active, onClick, first }) {
-  const [hover, setHover] = useState(false);
   return (
     <button onClick={onClick}
-      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      className={`serif ${active ? 'ms-hand-underline' : ''}`}
+      className={`serif ms-cat-btn ${active ? 'ms-hand-underline is-active' : ''}`}
       style={{
-        padding: '14px 18px', fontSize: 14, fontWeight: 500,
+        fontSize: 14, fontWeight: 500,
         fontStyle: active ? 'italic' : 'normal',
         letterSpacing: '0.01em',
         whiteSpace: 'nowrap',
         borderRight: '1px solid var(--rule-hair)',
         borderLeft: first ? '1px solid var(--rule-hair)' : 'none',
         background: 'transparent',
-        color: active ? 'var(--oxblood)' : (hover ? 'var(--ink-deep)' : 'var(--ink-2)'),
-        transition: 'color var(--dur-micro) var(--ease-micro)',
+        color: active ? 'var(--oxblood)' : 'var(--ink-2)',
       }}>
       {label}
     </button>
@@ -460,12 +456,14 @@ export function Hero({ books = [], onAdd, onOpen }) {
     if (w) w.postMessage(message, '*');
   }, []);
 
-  const goNext = useCallback(() => send({ type: 'pmb:next' }), [send]);
-  const goPrev = useCallback(() => send({ type: 'pmb:prev' }), [send]);
+  const userActionRef = useRef(false);
+  const goNext = useCallback(() => { userActionRef.current = true; send({ type: 'pmb:next' }); }, [send]);
+  const goPrev = useCallback(() => { userActionRef.current = true; send({ type: 'pmb:prev' }); }, [send]);
   // 12-page spread book: front cover (1), chapters I-V as spreads
   // (2-3, 4-5, 6-7, 8-9, 10-11), back cover (12).
   // Roman numeral N jumps to the LEFT page of chapter N's spread.
-  const goTo   = useCallback((target) => send({ type: 'pmb:goto', page: 2 + target * 2 }), [send]);
+  const goTo   = useCallback((target) => { userActionRef.current = true; send({ type: 'pmb:goto', page: 2 + target * 2 }); }, [send]);
+  const [announcedPage, setAnnouncedPage] = useState(null);
 
   // Listen for messages FROM the iframe
   useEffect(() => {
@@ -473,7 +471,13 @@ export function Hero({ books = [], onAdd, onOpen }) {
       const data = ev.data;
       if (!data || typeof data !== 'object') return;
       if (data.type === 'pmb:ready')   setIframeReady(true);
-      if (data.type === 'pmb:flipped') setPage(data.page);
+      if (data.type === 'pmb:flipped') {
+        setPage(data.page);
+        if (userActionRef.current) {
+          setAnnouncedPage(data.page);
+          userActionRef.current = false;
+        }
+      }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
@@ -513,6 +517,7 @@ export function Hero({ books = [], onAdd, onOpen }) {
             ref={iframeRef}
             src="/turn-book.html"
             title="Archive viewer"
+            sandbox="allow-same-origin allow-scripts"
             style={{
               position: 'absolute', inset: 0,
               width: '100%', height: '100%',
@@ -537,8 +542,8 @@ export function Hero({ books = [], onAdd, onOpen }) {
             <Icon name={userPaused ? 'play' : 'pause'} size={14} />
           </button>
 
-          <div role="status" aria-live="polite" className="sr-only">
-            Chapter {page} of {NUM_CHAPTERS}
+          <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {announcedPage !== null && `Chapter ${Math.max(1, Math.min(NUM_CHAPTERS, Math.floor((announcedPage - 2) / 2) + 1))} of ${NUM_CHAPTERS}`}
           </div>
 
           <div role="tablist" aria-label="Choose a chapter" style={{
@@ -552,17 +557,18 @@ export function Hero({ books = [], onAdd, onOpen }) {
                 aria-selected={i === index}
                 aria-current={i === index ? 'true' : undefined}
                 aria-label={`Chapter ${i + 1}`}
-                className={i === index ? 'ms-hand-underline' : ''}
+                className={`ms-hero-chapter-tab ${i === index ? 'ms-hand-underline is-active' : ''}`}
                 style={{
                   fontFamily: 'var(--serif)',
                   fontSize: i === index ? 18 : 14,
                   fontStyle: 'italic',
                   fontWeight: 500,
                   color: i === index ? 'var(--oxblood)' : 'var(--muted)',
-                  background: 'transparent', border: 'none', padding: '4px 2px',
+                  background: 'transparent', border: 'none', padding: '4px 8px',
                   cursor: 'pointer',
                   transition: 'font-size 280ms var(--ease-micro), color 280ms var(--ease-micro)',
-                  minWidth: 24,
+                  minWidth: 32,
+                  borderRadius: 4,
                 }}>
                 {toRoman(i + 1)}
               </button>
@@ -573,8 +579,17 @@ export function Hero({ books = [], onAdd, onOpen }) {
         <div className="ms-quick-pills" style={{
           display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginTop: 18,
         }}>
-          {['Publishers', 'Used Books', "Can't find a book?", 'Bulk orders', 'International shipping'].map((p, i) => (
-            <button key={i} className="ms-btn-pill">{p}</button>
+          {[
+            { label: 'Publishers', href: '/help#publishers' },
+            { label: 'Used Books', section: 'secondhand' },
+            { label: "Can't find a book?", href: 'mailto:hello@pammedicalbooks.in?subject=Book%20enquiry' },
+            { label: 'Bulk orders', href: 'mailto:hello@pammedicalbooks.in?subject=Bulk%20order' },
+            { label: 'International shipping', href: '/help#international' },
+          ].map((p) => (
+            <button key={p.label} type="button" className="ms-btn-pill" onClick={() => {
+              if (p.href) window.location.href = p.href;
+              else if (p.section) document.querySelector(`section[data-section="${p.section}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}>{p.label}</button>
           ))}
         </div>
       </div>
@@ -780,7 +795,13 @@ const COURSE_TINTS = [
   { name: 'Faculty',  sub: 'Reference & teaching',          tint: '#e8dcc6', hue: '#c8893e' },
 ];
 
-export function CourseTiles() {
+export function CourseTiles({ onSelectCategory }) {
+  const handleClick = (name) => {
+    if (onSelectCategory) onSelectCategory(name);
+    // Defer the scroll so React has a chance to mount SearchResults first,
+    // otherwise we scroll the storefront briefly before it swaps out.
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  };
   return (
     <section style={{ padding: '56px 32px', background: 'var(--paper)', borderBottom: '1px solid var(--rule)' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
@@ -791,12 +812,15 @@ export function CourseTiles() {
           </h2>
         </div>
         <div className="ms-grid-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-          {COURSE_TINTS.map((c, i) => (
-            <a key={i} href="#" className="ms-course-tile" style={{
+          {COURSE_TINTS.map((c) => (
+            <button key={c.name} type="button" onClick={() => handleClick(c.name)}
+              aria-label={`Browse ${c.name} — ${c.sub}`}
+              className="ms-course-tile" style={{
               '--tile-tint': c.tint,
               '--tile-hue': c.hue,
               padding: '24px 18px', position: 'relative',
               display: 'flex', flexDirection: 'column', gap: 6, minHeight: 140,
+              textAlign: 'left', cursor: 'pointer', font: 'inherit',
             }}>
               <div className="ms-course-tile-bubble" style={{
                 width: 36, height: 36, borderRadius: '50%',
@@ -814,7 +838,7 @@ export function CourseTiles() {
                 color: c.hue, marginTop: 6,
               }}>{c.name}</div>
               <div className="serif" style={{ fontStyle: 'italic', fontSize: 12, color: 'var(--ink-2)', opacity: 0.78 }}>{c.sub}</div>
-            </a>
+            </button>
           ))}
         </div>
       </div>
@@ -834,9 +858,11 @@ export function SectionHead({ eyebrow, title, subtitle, link }) {
         {subtitle && <p className="serif" style={{ fontSize: 14, color: 'var(--muted)', fontStyle: 'italic', marginTop: 6, marginBottom: 0 }}>{subtitle}</p>}
       </div>
       {link && (
-        <a href="#" className="ms-btn-link ms-arrow-link" style={{ flexShrink: 0 }}>
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="ms-btn-link ms-arrow-link" style={{ flexShrink: 0 }}
+          aria-label={`${link} — scroll up to browse the full catalogue via search`}>
           {link} <span className="ms-arrow">→</span>
-        </a>
+        </button>
       )}
     </div>
   );
@@ -886,8 +912,10 @@ export function BookCard({ book, onAdd, onOpen }) {
       </div>
 
       <h3 className="serif" style={{ fontSize: 15, lineHeight: 1.2, fontWeight: 500, color: 'var(--ink)',
-        margin: '0 0 4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
-        {book.title} <span className="t-mono" style={{ color: 'var(--muted)' }}>· {book.edition}</span>
+        margin: '0 0 4px', minHeight: 36 }}>
+        <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {book.title} <span className="t-mono" style={{ color: 'var(--muted)' }}>· {book.edition}</span>
+        </span>
       </h3>
       <div className="t-meta" style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{book.author}</div>
 
@@ -960,7 +988,7 @@ export function Bundles({ bundles, onAdd }) {
                 {b.books.map((bk, i) => (
                   <li key={i} className="serif" style={{ fontSize: 13, padding: '4px 0', display: 'flex', gap: 8 }}>
                     <Icon name="check" size={13} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
-                    <span>{bk}</span>
+                    <span>{typeof bk === 'string' ? bk : (bk?.title || '')}</span>
                   </li>
                 ))}
               </ul>
@@ -1026,8 +1054,18 @@ export function Forthcoming({ books, onOpen, onNotify }) {
                       ₹{b.mrp.toLocaleString('en-IN')}
                     </span>
                   </span>
-                  <button onClick={(e) => { e.stopPropagation(); onNotify(b); }} className="ms-btn-link ms-arrow-link" style={{ marginTop: 10 }}>
-                    Notify me <span className="ms-arrow">→</span>
+                  <button onClick={(e) => { e.stopPropagation(); onNotify(b); }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    aria-label={`Notify me when ${b.title} arrives`}
+                    className="sans"
+                    style={{
+                      marginTop: 12, padding: '8px 14px',
+                      fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                      background: 'var(--paper)', color: 'var(--accent)',
+                      border: '1px solid var(--accent)', cursor: 'pointer',
+                      alignSelf: 'flex-start',
+                    }}>
+                    Notify me →
                   </button>
                 </div>
               </div>
@@ -1042,7 +1080,7 @@ export function Forthcoming({ books, onOpen, onNotify }) {
 export function SecondHand({ books, onAdd, onOpen }) {
   if (!books?.length) return null;
   return (
-    <section style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)' }}>
+    <section data-section="secondhand" style={{ background: 'var(--paper)', borderBottom: '1px solid var(--rule-soft)' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto', padding: '80px 32px' }}>
         <SectionHead eyebrow="Student marketplace" title="Second-hand books — up to 60% off"
           subtitle="Quality-checked used textbooks from senior students at AIIMS, JIPMER, KGMU and 480+ medical colleges." link="Sell your books" />
@@ -1061,7 +1099,9 @@ export function SecondHand({ books, onAdd, onOpen }) {
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0 14px', background: 'var(--paper-2)', margin: '-16px -16px 14px', borderBottom: '1px solid var(--rule-soft)' }}>
                   <BookCover book={b} />
                 </div>
-                <h3 className="serif" style={{ fontSize: 14, lineHeight: 1.2, fontWeight: 500, minHeight: 36, overflow: 'hidden' }}>{b.title}</h3>
+                <h3 className="serif" style={{ fontSize: 14, lineHeight: 1.2, fontWeight: 500, minHeight: 36, margin: 0 }}>
+                <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{b.title}</span>
+              </h3>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFeatureSettings: '"tnum","lnum"' }}>{b.edition}</div>
                 <div className="t-archive" style={{ marginTop: 4, fontSize: 9 }}>{archiveCode(b)}</div>
                 <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--paper-2)', borderLeft: `3px solid ${condColor}`, fontSize: 11 }}>
@@ -1149,14 +1189,14 @@ export function Testimonials({ testimonials }) {
 export function Distributors() {
   const list = ['Elsevier', 'Wolters Kluwer', 'Lippincott', 'CBS', 'Jaypee', 'Bhanot', 'Thieme', 'Springer'];
   return (
-    <section style={{ padding: '40px 32px', background: 'var(--paper)', borderTop: '1px solid var(--rule-soft)' }}>
+    <section aria-labelledby="distributors-heading" style={{ padding: '40px 32px', background: 'var(--paper)', borderTop: '1px solid var(--rule-soft)' }}>
       <div className="ms-container" style={{ maxWidth: 1320, margin: '0 auto' }}>
-        <div className="eyebrow" style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 24 }}>Authorised distributor for</div>
-        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: 32 }}>
+        <div id="distributors-heading" className="eyebrow" style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 24 }}>Authorised distributor for</div>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: 32 }}>
           {list.map((d, i) => (
-            <div key={d} className="serif" style={{ fontWeight: 500, fontSize: 18, color: 'var(--ink-2)', fontStyle: i % 2 ? 'italic' : 'normal' }}>{d}</div>
+            <li key={d} className="serif" style={{ fontWeight: 500, fontSize: 18, color: 'var(--ink-2)', fontStyle: i % 2 ? 'italic' : 'normal' }}>{d}</li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
   );
@@ -1197,7 +1237,7 @@ export function Footer() {
             <div key={col.title}>
               <div className="eyebrow" style={{ color: 'rgba(246,241,231,0.55)', marginBottom: 16 }}>{col.title}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {col.links.map(l => <li key={l} style={{ marginBottom: 9 }}><a href="#" className="serif" style={{ fontSize: 13 }}>{l}</a></li>)}
+                {col.links.map(l => <li key={l} style={{ marginBottom: 9 }}><a href={`/help#${l.toLowerCase().replace(/\s+/g, '-')}`} className="serif" style={{ fontSize: 13 }}>{l}</a></li>)}
               </ul>
             </div>
           ))}

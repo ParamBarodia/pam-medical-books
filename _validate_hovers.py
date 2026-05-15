@@ -13,8 +13,8 @@ with sync_playwright() as p:
     page.goto(URL, wait_until="networkidle", timeout=20000)
     page.wait_for_timeout(800)
 
-    # 1. Hero "Buy Now" button hover
-    btn = page.locator('button:has-text("Buy Now")').first
+    # 1. Primary CTA "Add to Cart" hover (renamed from "Buy Now" — that label no longer exists)
+    btn = page.locator('button:has-text("Add to Cart")').first
     if btn.count() > 0:
         btn.scroll_into_view_if_needed()
         page.wait_for_timeout(300)
@@ -23,11 +23,11 @@ with sync_playwright() as p:
         bbox = btn.bounding_box()
         if bbox:
             page.screenshot(
-                path=str(OUT / "hover-buy-now.png"),
+                path=str(OUT / "hover-add-to-cart.png"),
                 clip={"x": max(bbox["x"] - 40, 0), "y": max(bbox["y"] - 60, 0),
                       "width": min(bbox["width"] + 320, 900), "height": bbox["height"] + 140},
             )
-        print("[hover] Buy Now ok")
+        print("[hover] Add to Cart ok")
 
     # Reset
     page.mouse.move(0, 0); page.wait_for_timeout(200)
